@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Activity,
   Layers,
+  Database,
 } from 'lucide-react';
 
 function ManagerPageContent() {
@@ -280,6 +281,16 @@ function ManagerPageContent() {
               >
                 <Download className="w-4 h-4" />
                 Download Ops CSV
+              </a>
+
+              <a
+                href="/api/backup"
+                download
+                title="Download complete JSON snapshot of all creators, dispatches, and users"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 shadow-sm flex items-center gap-1.5 transition-all"
+              >
+                <Database className="w-4 h-4 text-emerald-600" />
+                Full DB Backup
               </a>
             </div>
           </div>

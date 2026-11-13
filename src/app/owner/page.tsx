@@ -25,6 +25,7 @@ import {
   BarChart3,
   Search,
   MessageSquare,
+  Database,
 } from 'lucide-react';
 
 function OwnerPageContent() {
@@ -164,13 +165,24 @@ function OwnerPageContent() {
                 Real-time commercial spend, approval decisions, and team conversion metrics.
               </p>
             </div>
-            <button
-              onClick={loadData}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5 shadow-sm self-start"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/backup"
+                download
+                title="Download complete JSON snapshot of all creators, dispatches, and users"
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-600" />
+                Full DB Backup
+              </a>
+              <button
+                onClick={loadData}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 flex items-center gap-1.5 shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {/* Navigation Tabs */}

@@ -16,6 +16,16 @@ function cleanPhone(str) {
 }
 
 async function main() {
+  console.log('Checking database state before seeding...');
+
+  // Data Protection Guardrail: If database is already populated, skip seed to prevent overwriting live operational data
+  const existingCount = await prisma.influencer.count();
+  if (existingCount >= 50 && process.env.FORCE_SEED !== 'true') {
+    console.log(`\n🛡️ [DATA GUARD] Database already contains ${existingCount} influencers.`);
+    console.log('Skipping seed to protect live team data, new creators, and operational statuses.');
+    return;
+  }
+
   console.log('Seeding & Syncing HAB Outreach Dashboard with Confirmed Orders...');
 
   // 1. Create Team Users (Including Ali with OPERATIONS role)

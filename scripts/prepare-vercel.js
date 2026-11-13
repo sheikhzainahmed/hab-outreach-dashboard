@@ -24,12 +24,12 @@ if (isPostgres) {
   console.log('Switched Prisma provider to "postgresql" with directUrl for Neon/Vercel.');
 
   try {
-    console.log('Pushing Prisma schema to Neon PostgreSQL...');
-    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit', env: process.env });
-    console.log('Seeding initial data (team & 83 influencers)...');
+    console.log('Pushing Prisma schema to Neon PostgreSQL (safe mode)...');
+    execSync('npx prisma db push', { stdio: 'inherit', env: process.env });
+    console.log('Running database check...');
     execSync('node prisma/seed.js', { stdio: 'inherit', env: process.env });
   } catch (err) {
-    console.error('Error during db push or seed:', err);
+    console.error('Error during db push or seed check:', err);
   }
 } else {
   console.log('Using current Prisma provider.');

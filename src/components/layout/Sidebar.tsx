@@ -143,6 +143,10 @@ function SidebarNav({ role }: SidebarProps) {
                 <Truck className="w-4 h-4 text-indigo-600" />
                 <span>Dispatch Queue</span>
               </Link>
+              <Link href="/manager?tab=dispatch&status=Ready" className={navItemClass('/manager?tab=dispatch&status=Ready')}>
+                <Package className="w-4 h-4 text-amber-600" />
+                <span>To Be Dispatched (4)</span>
+              </Link>
               <Link href="/manager?tab=performance" className={navItemClass('/manager?tab=performance')}>
                 <BarChart3 className="w-4 h-4 text-rose-600" />
                 <span>Team Performance</span>

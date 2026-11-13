@@ -148,6 +148,18 @@ function OperationsContent() {
     };
   }, [dispatches]);
 
+  // Double Entry Detection: Identify any orders that share a phone number or name
+  const duplicatePhoneSet = useMemo(() => {
+    const counts: Record<string, number> = {};
+    dispatches.forEach((d) => {
+      const p = (d.influencer.phone || '').replace(/\D/g, '');
+      if (p.length >= 7) {
+        counts[p] = (counts[p] || 0) + 1;
+      }
+    });
+    return new Set(Object.keys(counts).filter((p) => counts[p] > 1));
+  }, [dispatches]);
+
   // Filtered & Searched Orders
   const filteredDispatches = useMemo(() => {
     return dispatches.filter((item) => {
@@ -586,6 +598,11 @@ function OperationsContent() {
                               <span className="font-mono text-xs text-slate-800">
                                 {item.influencer.phone}
                               </span>
+                              {duplicatePhoneSet.has((item.influencer.phone || '').replace(/\D/g, '')) && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="Another order exists with this phone number">
+                                  Duplicate
+                                </span>
+                              )}
                               {item.influencer.phone && (
                                 <a
                                   href={`https://wa.me/${item.influencer.phone.replace(/\D/g, '')}`}

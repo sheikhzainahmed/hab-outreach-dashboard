@@ -47,7 +47,10 @@ function ManagerPageContent() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState('Ready');
+  const statusParam = searchParams.get('status') || searchParams.get('filter') || 'Ready';
+  const [statusFilter, setStatusFilter] = useState(
+    statusParam.toLowerCase() === 'ready' ? 'Ready' : statusParam
+  );
   const [copiedToast, setCopiedToast] = useState(false);
   const [execSearch, setExecSearch] = useState('');
 
@@ -350,32 +353,76 @@ function ManagerPageContent() {
           {/* TAB 1: DISPATCH QUEUE */}
           {activeTab === 'dispatch' && (
             <div className="space-y-6">
-              {/* Quick Summary Pill Bar */}
+              {/* Quick Summary Cards (Click to filter queue) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-white rounded-2xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Ready for Ops</span>
-                  <p className="text-xl font-bold text-slate-900 mt-0.5">
-                    {allInfluencers.filter((i) => i.stage === 'Ready to ship').length}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('Ready')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    statusFilter === 'Ready'
+                      ? 'bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/20'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-amber-700">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">To Be Dispatched</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  </div>
+                  <p className="text-2xl font-bold text-amber-900 mt-0.5">
+                    {allInfluencers.filter((i) => i.stage === 'Ready to ship' || i.dispatch?.status === 'Ready').length}
                   </p>
-                </div>
-                <div className="p-3.5 bg-white rounded-2xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Sent to Ops Hand-off</span>
-                  <p className="text-xl font-bold text-amber-600 mt-0.5">
+                  <p className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                    {statusFilter === 'Ready' ? '✓ Currently filtered' : 'Click to filter'}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('Sent to ops')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    statusFilter === 'Sent to ops'
+                      ? 'bg-purple-50 border-purple-500 shadow-md ring-2 ring-purple-500/20'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sent to Ops</span>
+                  <p className="text-2xl font-bold text-purple-700 mt-0.5">
                     {allInfluencers.filter((i) => i.dispatch?.status === 'Sent to ops').length}
                   </p>
-                </div>
-                <div className="p-3.5 bg-white rounded-2xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">In Transit / Shipped</span>
-                  <p className="text-xl font-bold text-indigo-600 mt-0.5">
-                    {allInfluencers.filter((i) => i.stage === 'Shipped').length}
+                  <p className="text-[10px] text-slate-400 mt-0.5">Hand-off to Ali</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('Shipped')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    statusFilter === 'Shipped'
+                      ? 'bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">In Transit</span>
+                  <p className="text-2xl font-bold text-indigo-600 mt-0.5">
+                    {allInfluencers.filter((i) => i.stage === 'Shipped' || i.dispatch?.status === 'Shipped').length}
                   </p>
-                </div>
-                <div className="p-3.5 bg-white rounded-2xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Delivered & Done</span>
-                  <p className="text-xl font-bold text-emerald-600 mt-0.5">
-                    {allInfluencers.filter((i) => ['Content pending', 'Content received'].includes(i.stage)).length}
+                  <p className="text-[10px] text-slate-400 mt-0.5">With courier tracking</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('Delivered')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all ${
+                    statusFilter === 'Delivered'
+                      ? 'bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Delivered</span>
+                  <p className="text-2xl font-bold text-emerald-600 mt-0.5">
+                    {allInfluencers.filter((i) => i.dispatch?.status === 'Delivered' || ['Content pending', 'Content received'].includes(i.stage)).length}
                   </p>
-                </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Received by creator</p>
+                </button>
               </div>
 
               {/* Dispatch Queue Table */}
@@ -385,6 +432,11 @@ function ManagerPageContent() {
                     <h2 className="text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
                       <Truck className="w-5 h-5 text-purple-600" />
                       Dispatch Fulfilment Queue
+                      {statusFilter === 'Ready' && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          To Be Dispatched
+                        </span>
+                      )}
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Advance packages through Ready &rarr; Sent to Ops &rarr; Shipped &rarr; Delivered.
@@ -393,17 +445,23 @@ function ManagerPageContent() {
 
                   {/* Status Filter Tabs */}
                   <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                    {['Ready', 'Sent to ops', 'Shipped', 'Delivered', 'all'].map((st) => (
+                    {[
+                      { id: 'Ready', label: 'To Be Dispatched' },
+                      { id: 'Sent to ops', label: 'Sent to Ops' },
+                      { id: 'Shipped', label: 'In Transit' },
+                      { id: 'Delivered', label: 'Delivered' },
+                      { id: 'all', label: 'All Packages' },
+                    ].map((tab) => (
                       <button
-                        key={st}
-                        onClick={() => setStatusFilter(st)}
+                        key={tab.id}
+                        onClick={() => setStatusFilter(tab.id)}
                         className={`px-3 py-1.5 rounded-lg transition-colors capitalize ${
-                          statusFilter === st
-                            ? 'bg-white text-purple-700 shadow-sm'
+                          statusFilter === tab.id
+                            ? 'bg-white text-purple-700 shadow-sm font-bold'
                             : 'text-slate-500 hover:text-slate-900'
                         }`}
                       >
-                        {st === 'all' ? 'All Packages' : st}
+                        {tab.label}
                       </button>
                     ))}
                   </div>

@@ -2,12 +2,21 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
-const Papa = require('papaparse');
 
 const prisma = new PrismaClient();
 
+function norm(str) {
+  return (str || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+}
+
+function cleanPhone(str) {
+  let digits = (str || '').replace(/\D/g, '');
+  if (digits.startsWith('92')) digits = '0' + digits.slice(2);
+  return digits.length >= 7 ? digits.slice(-10) : digits;
+}
+
 async function main() {
-  console.log('Seeding & Syncing HAB Outreach Dashboard...');
+  console.log('Seeding & Syncing HAB Outreach Dashboard with Confirmed Orders...');
 
   // 1. Create Team Users (Including Ali with OPERATIONS role)
   const passwordHash = await bcrypt.hash('password123', 10);
@@ -58,133 +67,185 @@ async function main() {
     return defaultUser;
   }
 
-  function parseDateString(dStr) {
-    if (!dStr) return null;
-    const clean = dStr.trim();
-    const parts = clean.split('.');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      let year = parseInt(parts[2], 10);
-      if (year < 100) year += 2000;
-      const d = new Date(year, month, day);
-      if (!isNaN(d.getTime())) return d;
-    }
-    const standardDate = new Date(clean);
-    return isNaN(standardDate.getTime()) ? null : standardDate;
+  // 2. Load and Deduplicate Confirmed Orders
+  const ordersJsonPath = path.join(__dirname, 'confirmed_orders_latest.json');
+  if (!fs.existsSync(ordersJsonPath)) {
+    console.error('File not found:', ordersJsonPath);
+    return;
   }
 
-  // 2. Sync Confirmed Orders (117 records)
-  const ordersJsonPath = path.join(__dirname, 'confirmed_orders_data.json');
-  if (fs.existsSync(ordersJsonPath)) {
-    const confirmedOrders = JSON.parse(fs.readFileSync(ordersJsonPath, 'utf8'));
-    console.log(`Syncing ${confirmedOrders.length} confirmed orders into database...`);
+  const rawOrders = JSON.parse(fs.readFileSync(ordersJsonPath, 'utf8'));
+  console.log(`Loaded ${rawOrders.length} raw confirmed orders.`);
 
-    let updatedCount = 0;
-    let createdCount = 0;
+  // Strict deduplication by phone, name, and address
+  const seenPhone = new Map();
+  const seenName = new Map();
+  const seenAddress = new Map();
+  const uniqueOrders = [];
 
-    for (const order of confirmedOrders) {
-      const assignedUser = getAssignedUser(order.locked_by);
-      const orderDate = parseDateString(order.order_date) || new Date();
-      const shippedDate = parseDateString(order.shipped_date) || (order.dispatch_status !== 'Ready' ? orderDate : null);
-      const deliveredDate = order.dispatch_status === 'Delivered' ? (parseDateString(order.shipped_date) || orderDate) : null;
+  for (const o of rawOrders) {
+    const cPhone = cleanPhone(o.phone);
+    const cName = norm(o.name);
+    const cAddr = norm(o.address).slice(0, 25);
 
-      const phoneDigits = (order.phone || '').replace(/\D/g, '');
+    let isDup = false;
+    if (cPhone && cPhone.length >= 7 && seenPhone.has(cPhone)) {
+      isDup = true;
+    } else if (cName && seenName.has(cName)) {
+      isDup = true;
+    } else if (cAddr && cAddr.length >= 15 && seenAddress.has(cAddr)) {
+      isDup = true;
+    }
 
-      const existing = await prisma.influencer.findFirst({
-        where: {
-          OR: [
-            { name: { equals: order.name.trim() } },
-            { shippingName: { equals: order.name.trim() } },
-            ...(phoneDigits.length >= 7 ? [{ phone: { contains: phoneDigits.slice(-7) } }] : []),
-          ],
+    if (!isDup) {
+      if (cPhone && cPhone.length >= 7) seenPhone.set(cPhone, o);
+      if (cName) seenName.set(cName, o);
+      if (cAddr && cAddr.length >= 15) seenAddress.set(cAddr, o);
+      uniqueOrders.push(o);
+    }
+  }
+
+  console.log(`Deduplicated to ${uniqueOrders.length} clean orders.`);
+
+  // The EXACT 4 creators that must be in "To be dispatched" (Ready):
+  const EXACT_4_READY_NAMES = ['dr nargis khan', 'dr hareem', 'minahil abrar', 'alishba amir'];
+
+  function isExact4Ready(name) {
+    const n = norm(name);
+    return EXACT_4_READY_NAMES.some((target) => n.includes(norm(target)));
+  }
+
+  let updatedCount = 0;
+  let createdCount = 0;
+
+  for (const o of uniqueOrders) {
+    const assignedUser = getAssignedUser(o.locked_by);
+    const isReadyOrder = isExact4Ready(o.name);
+
+    let dispatchStatus = 'Shipped';
+    let stage = 'Shipped';
+
+    if (isReadyOrder) {
+      dispatchStatus = 'Ready';
+      stage = 'Ready to ship';
+    } else if (o.status && o.status.toLowerCase().includes('delivered')) {
+      dispatchStatus = 'Delivered';
+      stage = 'Content pending';
+    } else {
+      dispatchStatus = 'Shipped';
+      stage = 'Shipped';
+    }
+
+    const cPhone = cleanPhone(o.phone);
+
+    const existing = await prisma.influencer.findFirst({
+      where: {
+        OR: [
+          { name: { equals: o.name.trim() } },
+          { shippingName: { equals: o.name.trim() } },
+          ...(cPhone && cPhone.length >= 7 ? [{ phone: { contains: cPhone.slice(-7) } }] : []),
+        ],
+      },
+    });
+
+    if (existing) {
+      await prisma.influencer.update({
+        where: { id: existing.id },
+        data: {
+          name: o.name.trim(),
+          shippingName: o.name.trim(),
+          phone: o.phone || existing.phone,
+          address: o.address || existing.address,
+          products: o.products || existing.products,
+          stage: stage,
+          assignedToId: assignedUser.id,
         },
       });
 
-      if (existing) {
-        await prisma.influencer.update({
-          where: { id: existing.id },
-          data: {
-            phone: order.phone || existing.phone,
-            address: order.address || existing.address,
-            city: order.city || existing.city,
-            products: order.products || existing.products,
-            stage: order.stage,
-            assignedToId: assignedUser.id,
-            lastEditedById: userMap['ali']?.id || defaultUser.id,
-          },
-        });
+      await prisma.dispatch.upsert({
+        where: { influencerId: existing.id },
+        update: {
+          status: dispatchStatus,
+          trackingNumber: o.tracking || null,
+        },
+        create: {
+          influencerId: existing.id,
+          status: dispatchStatus,
+          trackingNumber: o.tracking || null,
+        },
+      });
+      updatedCount++;
+    } else {
+      const cleanHandle = '@' + o.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
 
-        await prisma.dispatch.upsert({
-          where: { influencerId: existing.id },
-          update: {
-            status: order.dispatch_status,
-            trackingNumber: order.tracking || null,
-            shippedDate: shippedDate,
-            deliveredDate: deliveredDate,
-          },
-          create: {
-            influencerId: existing.id,
-            status: order.dispatch_status,
-            trackingNumber: order.tracking || null,
-            shippedDate: shippedDate,
-            deliveredDate: deliveredDate,
-          },
-        });
+      const newInf = await prisma.influencer.create({
+        data: {
+          name: o.name.trim(),
+          igHandle: cleanHandle,
+          followerCount: 15000,
+          category: 'Skinfluencer',
+          stars: '⭐⭐⭐⭐',
+          shippingName: o.name.trim(),
+          address: o.address,
+          phone: o.phone || '0300-0000000',
+          email: o.email || null,
+          prPackage: o.products || 'Custom Package',
+          products: o.products,
+          stage: stage,
+          isPaid: false,
+          amount: 0,
+          createdById: assignedUser.id,
+          assignedToId: assignedUser.id,
+        },
+      });
 
-        updatedCount++;
-      } else {
-        const cleanHandle = '@' + order.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      await prisma.deliverable.create({
+        data: {
+          influencerId: newInf.id,
+          type: '1 Reel + 1 Story',
+          received: false,
+        },
+      });
 
-        const newInf = await prisma.influencer.create({
-          data: {
-            name: order.name,
-            igHandle: cleanHandle,
-            followerCount: 15000,
-            category: 'Skinfluencer',
-            stars: '⭐⭐⭐⭐',
-            shippingName: order.name,
-            address: order.address,
-            phone: order.phone || '0300-0000000',
-            email: order.email || null,
-            city: order.city,
-            prPackage: order.products || 'Custom Package',
-            products: order.products,
-            stage: order.stage,
-            isPaid: false,
-            amount: 0,
-            createdById: assignedUser.id,
-            assignedToId: assignedUser.id,
-            createdAt: orderDate,
-          },
-        });
-
-        await prisma.deliverable.create({
-          data: {
-            influencerId: newInf.id,
-            type: '1 Reel + 1 Story',
-            dueDate: new Date(orderDate.getTime() + 14 * 24 * 60 * 60 * 1000),
-            received: false,
-          },
-        });
-
-        await prisma.dispatch.create({
-          data: {
-            influencerId: newInf.id,
-            status: order.dispatch_status,
-            trackingNumber: order.tracking || null,
-            sentToOpsDate: orderDate,
-            shippedDate: shippedDate,
-            deliveredDate: deliveredDate,
-          },
-        });
-
-        createdCount++;
-      }
+      await prisma.dispatch.create({
+        data: {
+          influencerId: newInf.id,
+          status: dispatchStatus,
+          trackingNumber: o.tracking || null,
+        },
+      });
+      createdCount++;
     }
-
-    console.log(`Sync completed: ${updatedCount} updated, ${createdCount} created.`);
   }
+
+  // Ensure any other records in Ready are moved to Shipped
+  const allReady = await prisma.dispatch.findMany({
+    where: { status: 'Ready' },
+    include: { influencer: true },
+  });
+
+  for (const d of allReady) {
+    if (!isExact4Ready(d.influencer.name)) {
+      await prisma.dispatch.update({
+        where: { id: d.id },
+        data: { status: 'Shipped' },
+      });
+      await prisma.influencer.update({
+        where: { id: d.influencerId },
+        data: { stage: 'Shipped' },
+      });
+    }
+  }
+
+  const finalReady = await prisma.dispatch.findMany({
+    where: { status: 'Ready' },
+    include: { influencer: true },
+  });
+
+  console.log(`\n=== VERIFIED READY COUNT: ${finalReady.length} (Target: 4) ===`);
+  finalReady.forEach((r, idx) => {
+    console.log(`${idx + 1}. ${r.influencer.name} | Phone: ${r.influencer.phone}`);
+  });
 
   const totalInDb = await prisma.influencer.count();
   console.log(`Total influencers in DB: ${totalInDb}`);

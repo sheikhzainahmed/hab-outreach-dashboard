@@ -30,6 +30,7 @@ export default function AddInfluencerModal({
 }: AddInfluencerModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<any | null>(null);
 
   // Form State
   const [igHandle, setIgHandle] = useState('');
@@ -62,6 +63,45 @@ export default function AddInfluencerModal({
   // Quick DM parse drawer
   const [dmPasteText, setDmPasteText] = useState('');
   const [showDmParser, setShowDmParser] = useState(false);
+
+  // Real-time Duplicate Prevention Check (Checks Name, Phone, or Address)
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(async () => {
+      const candidateName = name.trim();
+      const candidatePhone = phone.trim();
+      const candidateAddr = address.trim();
+
+      if (
+        (candidateName.length >= 3) ||
+        (candidatePhone.length >= 7 && candidatePhone !== 'TBD') ||
+        (candidateAddr.length >= 15 && candidateAddr !== 'TBD')
+      ) {
+        try {
+          const params = new URLSearchParams();
+          if (candidateName.length >= 3) params.set('name', candidateName);
+          if (candidatePhone.length >= 7 && candidatePhone !== 'TBD') params.set('phone', candidatePhone);
+          if (candidateAddr.length >= 15 && candidateAddr !== 'TBD') params.set('address', candidateAddr);
+
+          const res = await fetch(`/api/influencers/check-duplicate?${params.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.isDuplicate) {
+              setDuplicateWarning(data);
+            } else {
+              setDuplicateWarning(null);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setDuplicateWarning(null);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [name, phone, address, isOpen]);
 
   if (!isOpen) return null;
 
@@ -186,6 +226,31 @@ export default function AddInfluencerModal({
             <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 flex items-start gap-2 text-xs text-red-700">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Real-time Double Entry Alert */}
+          {duplicateWarning && (
+            <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-400 text-rose-950 text-xs flex items-start gap-3 shadow-md animate-in fade-in slide-in-from-top-1">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-rose-900 text-sm flex items-center gap-1.5">
+                  Double Entry Prevented (Matched by {duplicateWarning.matchedBy})!
+                </p>
+                <p className="text-xs text-rose-800 leading-relaxed">
+                  A creator matching this <strong>{duplicateWarning.matchedBy}</strong> is already registered:
+                </p>
+                <div className="p-2 rounded-xl bg-white/80 border border-rose-200 text-[11px] font-mono text-slate-700 space-y-0.5">
+                  <div><strong>Name:</strong> {duplicateWarning.duplicate.name} ({duplicateWarning.duplicate.igHandle})</div>
+                  <div><strong>Phone:</strong> {duplicateWarning.duplicate.phone}</div>
+                  <div><strong>Address:</strong> {duplicateWarning.duplicate.address}</div>
+                  <div><strong>Status:</strong> <span className="font-bold text-amber-700">{duplicateWarning.duplicate.dispatchStatus}</span> ({duplicateWarning.duplicate.stage})</div>
+                  <div><strong>Locked By:</strong> {duplicateWarning.duplicate.assignedTo}</div>
+                </div>
+                <p className="text-[11px] text-rose-700 font-bold pt-0.5">
+                  ⚠️ Double entries are strictly blocked to prevent sending multiple physical parcels and direct financial loss.
+                </p>
+              </div>
             </div>
           )}
 
@@ -540,10 +605,10 @@ export default function AddInfluencerModal({
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 shadow-md shadow-rose-200 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                disabled={loading || !!duplicateWarning}
+                className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 shadow-md shadow-rose-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
               >
-                {loading ? 'Saving...' : 'Save Creator'}
+                {loading ? 'Saving...' : duplicateWarning ? 'Blocked (Duplicate)' : 'Save Creator'}
               </button>
             </div>
           </div>

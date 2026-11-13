@@ -132,13 +132,41 @@ export async function POST(request: Request) {
       ? igHandle.trim()
       : `@${igHandle.trim()}`;
 
-    // Duplicate handle check
+    // Robust Duplicate Prevention: Check handle, full name, phone number, and address
+    // This prevents sending duplicate packages and incurring direct inventory losses
+    const cleanPhoneDigits = (phone || '').replace(/\D/g, '');
+    const cleanAddr = (address || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const candidateName = (name || '').trim();
+
+    const orConditions: any[] = [{ igHandle: cleanHandle }];
+    if (candidateName && candidateName.length >= 3) {
+      orConditions.push({ name: { equals: candidateName, mode: 'insensitive' } });
+      orConditions.push({ shippingName: { equals: candidateName, mode: 'insensitive' } });
+    }
+    if (cleanPhoneDigits && cleanPhoneDigits.length >= 7) {
+      orConditions.push({ phone: { contains: cleanPhoneDigits.slice(-7) } });
+    }
+    if (cleanAddr && cleanAddr.length >= 15 && cleanAddr !== 'tbd') {
+      orConditions.push({ address: { contains: address.trim().slice(0, 20), mode: 'insensitive' } });
+    }
+
     const existing = await prisma.influencer.findFirst({
-      where: { igHandle: cleanHandle },
+      where: { OR: orConditions },
+      include: { dispatch: true },
     });
+
     if (existing) {
+      let matchedField = 'Handle';
+      if (existing.igHandle.toLowerCase() === cleanHandle.toLowerCase()) matchedField = `Handle (${cleanHandle})`;
+      else if (candidateName && (existing.name.toLowerCase() === candidateName.toLowerCase() || existing.shippingName.toLowerCase() === candidateName.toLowerCase())) matchedField = `Full Name ("${existing.name}")`;
+      else if (cleanPhoneDigits && existing.phone.replace(/\D/g, '').includes(cleanPhoneDigits.slice(-7))) matchedField = `Phone Number (${existing.phone})`;
+      else matchedField = `Delivery Address ("${existing.address.slice(0, 30)}...")`;
+
       return NextResponse.json(
-        { error: `Influencer ${cleanHandle} is already in the dashboard! You can search and edit their existing record.` },
+        {
+          error: `Double Entry Blocked! A creator with this ${matchedField} is already registered as "${existing.name}" (Stage: ${existing.stage}, Dispatch: ${existing.dispatch?.status || 'N/A'}). Duplicate entries are blocked to prevent sending multiple parcels and causing financial loss.`,
+          duplicateId: existing.id,
+        },
         { status: 409 }
       );
     }

@@ -1,0 +1,130 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                  String        @id @default(cuid())
+  name                String
+  email               String        @unique
+  password            String
+  role                String        @default("EXECUTOR") // EXECUTOR, OWNER, MANAGER
+  active              Boolean       @default(true)
+  avatar              String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  createdInfluencers  Influencer[]  @relation("CreatedBy")
+  assignedInfluencers Influencer[]  @relation("AssignedTo")
+  approvals           Approval[]
+  activityLogs        ActivityLog[]
+  notifications       Notification[]
+}
+
+model Influencer {
+  id              String        @id @default(cuid())
+  igHandle        String
+  name            String
+  followerCount   Int           @default(0)
+  category        String?       // Skinfluencer, Creative, Dermatologist, Lifestyle
+  stars           String?       // ⭐⭐⭐⭐⭐
+  shippingName    String
+  address         String
+  phone           String
+  email           String?
+  city            String?
+  prPackage       String
+  products        String?       // List of products to send
+  isPaid          Boolean       @default(false)
+  amount          Float         @default(0)
+  deadline        DateTime?
+  stage           String        @default("Contacted") // Contacted, Replied, Package agreed, Awaiting approval, Ready to ship, Shipped, Content pending, Content received, Removed / on hold
+  notes           String?
+  discountCode    String?
+  salesGenerated  Float         @default(0)
+
+  createdById     String
+  createdBy       User          @relation("CreatedBy", fields: [createdById], references: [id])
+  lastEditedById  String?
+  assignedToId    String?
+  assignedTo      User?         @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  deliverables    Deliverable[]
+  approval        Approval?
+  dispatch        Dispatch?
+  activityLogs    ActivityLog[]
+}
+
+model Deliverable {
+  id           String      @id @default(cuid())
+  influencerId String
+  influencer   Influencer  @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  type         String      // 1 Reel, 1 Story, 1 Reel + 1 Story, Carousel, etc.
+  dueDate      DateTime?
+  received     Boolean     @default(false)
+  proofUrl     String?     // Link or screenshot URL
+  receivedAt   DateTime?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Approval {
+  id           String      @id @default(cuid())
+  influencerId String      @unique
+  influencer   Influencer  @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  amount       Float
+  status       String      @default("PENDING") // PENDING, APPROVED, REJECTED
+  approverId   String?
+  approver     User?       @relation(fields: [approverId], references: [id])
+  note         String?
+  decidedAt    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Dispatch {
+  id             String      @id @default(cuid())
+  influencerId   String      @unique
+  influencer     Influencer  @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  status         String      @default("Ready") // Ready, Sent to ops, Shipped, Delivered
+  sentToOpsDate  DateTime?
+  shippedDate    DateTime?
+  deliveredDate  DateTime?
+  trackingNumber String?
+  shippingNotes  String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model ActivityLog {
+  id           String      @id @default(cuid())
+  entity       String      // Influencer, Deliverable, Approval, Dispatch
+  recordId     String
+  influencerId String?
+  influencer   Influencer? @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  action       String      // CREATED, STAGE_CHANGED, APPROVED, REJECTED, DISPATCH_ADVANCED, DELIVERABLE_RECEIVED, EDITED
+  details      String?
+  changedById  String
+  changedBy    User        @relation(fields: [changedById], references: [id])
+  timestamp    DateTime    @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  type      String   @default("info") // info, warning, success, alert
+  createdAt DateTime @default(now())
+}

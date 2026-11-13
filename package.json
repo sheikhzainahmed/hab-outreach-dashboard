@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/prepare-vercel.js && prisma generate && next build",
+    "build": "node scripts/prepare-vercel.js && (npx prisma db push --skip-generate || true) && prisma generate && (node prisma/seed.js || true) && next build",
     "start": "next start",
     "seed": "node prisma/seed.js",
     "lint": "eslint"

@@ -44,7 +44,16 @@ async function main() {
   const defaultUser = userMap['amna'] || userMap['zain'];
 
   // 2. Parse Raw CSV Data
-  const csvPath = path.join(__dirname, '../../raw_sheets_data.csv');
+  const existingCount = await prisma.influencer.count();
+  if (existingCount > 0) {
+    console.log(`Database already has ${existingCount} influencers. Skipping initial data seeding.`);
+    return;
+  }
+
+  let csvPath = path.join(__dirname, 'raw_sheets_data.csv');
+  if (!fs.existsSync(csvPath)) {
+    csvPath = path.join(__dirname, '../../raw_sheets_data.csv');
+  }
   if (fs.existsSync(csvPath)) {
     const csvContent = fs.readFileSync(csvPath, 'utf8');
     const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });

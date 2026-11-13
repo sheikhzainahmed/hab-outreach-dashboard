@@ -183,6 +183,7 @@ export default function SettingsPage() {
                         >
                           <option value="EXECUTOR">EXECUTOR</option>
                           <option value="COORDINATOR">COORDINATOR</option>
+                          <option value="OPERATIONS">OPERATIONS</option>
                           <option value="MANAGER">MANAGER</option>
                           <option value="OWNER">OWNER</option>
                         </select>
@@ -274,7 +275,8 @@ export default function SettingsPage() {
                 >
                   <option value="EXECUTOR">EXECUTOR (Data entry & outreach)</option>
                   <option value="COORDINATOR">COORDINATOR (Outreach & Coordination)</option>
-                  <option value="MANAGER">MANAGER (Operations & dispatch)</option>
+                  <option value="OPERATIONS">OPERATIONS (Physical dispatch & packaging)</option>
+                  <option value="MANAGER">MANAGER (Operations & dispatch oversight)</option>
                   <option value="OWNER">OWNER (Oversight & spend approvals)</option>
                 </select>
               </div>

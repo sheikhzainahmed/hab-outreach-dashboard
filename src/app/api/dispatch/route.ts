@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
 
     if (user.role === 'EXECUTOR' || user.role === 'COORDINATOR') {
       return NextResponse.json(
-        { error: 'Only the Manager (Zain) or Owner can update package dispatch statuses' },
+        { error: 'Only Operations (Ali), Manager (Zain), or Owner can update package dispatch statuses' },
         { status: 403 }
       );
     }
@@ -86,6 +86,19 @@ export async function PUT(request: Request) {
         where: { id: current.influencerId },
         data: { stage: 'Content pending', lastEditedById: user.id },
       });
+
+      // Custom notification: Notify the executor who locked this creator so they can reach out for content
+      if (current.influencer.assignedToId) {
+        await prisma.notification.create({
+          data: {
+            userId: current.influencer.assignedToId,
+            title: `📦 Parcel Delivered: ${current.influencer.name}`,
+            message: `${user.name} marked the parcel for ${current.influencer.name} (${current.influencer.igHandle || ''}) as Delivered! You can now reach out to confirm receipt and follow up on content.`,
+            link: '/executor',
+            type: 'success',
+          },
+        });
+      }
     }
 
     const updated = await prisma.dispatch.update({

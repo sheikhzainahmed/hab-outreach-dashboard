@@ -7,21 +7,22 @@ const Papa = require('papaparse');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding HAB Outreach Dashboard...');
+  console.log('Seeding & Syncing HAB Outreach Dashboard...');
 
-  // 1. Create Team Users
+  // 1. Create Team Users (Including Ali with OPERATIONS role)
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const usersData = [
     { name: 'Humza', email: 'humza@hiraalibeauty.com', role: 'OWNER' },
     { name: 'Zain', email: 'zain@hiraalibeauty.com', role: 'MANAGER' },
+    { name: 'Ali', email: 'ali@hiraalibeauty.com', role: 'OPERATIONS' },
+    { name: 'Huzaifa', email: 'huzaifa@hiraalibeauty.com', role: 'COORDINATOR' },
     { name: 'Fatima', email: 'fatima@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Minahil', email: 'minahil@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Amna', email: 'amna@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Maryam', email: 'maryam@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Sophia', email: 'sophia@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Maimoona', email: 'maimoona@hiraalibeauty.com', role: 'EXECUTOR' },
-    { name: 'Huzaifa', email: 'huzaifa@hiraalibeauty.com', role: 'COORDINATOR' },
   ];
 
   const userMap = {};
@@ -39,222 +40,154 @@ async function main() {
     });
     userMap[u.name.toLowerCase()] = user;
   }
-  console.log(`Created/updated ${Object.keys(userMap).length} users.`);
+  console.log(`Created/updated ${Object.keys(userMap).length} team users (Ali created with OPERATIONS role).`);
 
   const defaultUser = userMap['amna'] || userMap['zain'];
 
-  // 2. Parse Raw CSV Data
-  const existingCount = await prisma.influencer.count();
-  if (existingCount > 0) {
-    console.log(`Database already has ${existingCount} influencers. Skipping initial data seeding.`);
-    return;
+  function getAssignedUser(lockedByStr) {
+    if (!lockedByStr) return defaultUser;
+    const clean = lockedByStr.trim().toLowerCase();
+    if (userMap[clean]) return userMap[clean];
+    if (clean.includes('amna')) return userMap['amna'];
+    if (clean.includes('fatima')) return userMap['fatima'];
+    if (clean.includes('minahil')) return userMap['minahil'];
+    if (clean.includes('maryam')) return userMap['maryam'];
+    if (clean.includes('sophia')) return userMap['sophia'];
+    if (clean.includes('maimoona')) return userMap['maimoona'];
+    if (clean.includes('huzaifa')) return userMap['huzaifa'];
+    return defaultUser;
   }
 
-  let csvPath = path.join(__dirname, 'raw_sheets_data.csv');
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(__dirname, '../../raw_sheets_data.csv');
+  function parseDateString(dStr) {
+    if (!dStr) return null;
+    const clean = dStr.trim();
+    const parts = clean.split('.');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      let year = parseInt(parts[2], 10);
+      if (year < 100) year += 2000;
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const standardDate = new Date(clean);
+    return isNaN(standardDate.getTime()) ? null : standardDate;
   }
-  if (fs.existsSync(csvPath)) {
-    const csvContent = fs.readFileSync(csvPath, 'utf8');
-    const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
-    console.log(`Read ${parsed.data.length} records from raw_sheets_data.csv.`);
 
-    let count = 0;
-    for (const row of parsed.data) {
-      const name = (row['Name'] || row['Creator'] || row['NAME'] || '').trim();
-      const rawIg = (row['Instagram Id'] || row['Instagram'] || '').trim();
-      if (!name && !rawIg) continue;
+  // 2. Sync Confirmed Orders (117 records)
+  const ordersJsonPath = path.join(__dirname, 'confirmed_orders_data.json');
+  if (fs.existsSync(ordersJsonPath)) {
+    const confirmedOrders = JSON.parse(fs.readFileSync(ordersJsonPath, 'utf8'));
+    console.log(`Syncing ${confirmedOrders.length} confirmed orders into database...`);
 
-      let igHandle = (row['_handle_helper'] || '').trim();
-      if (!igHandle && rawIg) {
-        const match = rawIg.match(/instagram\.com\/([^/?#]+)/i);
-        igHandle = match ? match[1] : rawIg.replace('@', '');
-      }
-      if (!igHandle) igHandle = name.toLowerCase().replace(/[^a-z0-9_.]/g, '');
+    let updatedCount = 0;
+    let createdCount = 0;
 
-      // Assignee or Contacted By
-      const contactedByStr = (row['Contacted By'] || row['Managed by'] || row['Assignee'] || '').trim().toLowerCase();
-      const ownerUser = userMap[contactedByStr] || defaultUser;
+    for (const order of confirmedOrders) {
+      const assignedUser = getAssignedUser(order.locked_by);
+      const orderDate = parseDateString(order.order_date) || new Date();
+      const shippedDate = parseDateString(order.shipped_date) || (order.dispatch_status !== 'Ready' ? orderDate : null);
+      const deliveredDate = order.dispatch_status === 'Delivered' ? (parseDateString(order.shipped_date) || orderDate) : null;
 
-      const phone = (row['Contact Number'] || row['Number'] || '').trim();
-      const address = (row['Address'] || '').trim();
-      const products = (row['Products To Send'] || row['Products to send'] || row['Pro '] || 'Hair Revival Trio').trim();
-      const reqWhat = (row['Required What, are they charging'] || row['Required What'] || '').trim();
-      const category = (row['Category'] || 'Lifestyle').trim();
-      const stars = (row['Stars'] || '').trim();
-      const statusRaw = (row['Status'] || '').trim();
-      const shippedRaw = (row['Shipped'] || '').trim();
-      const notes = (row['Additional Notes'] || row['Notes'] || '').trim();
-      const discountCode = (row['Discount Code'] || '').trim();
-      const salesGen = parseFloat(row['Sales Generated'] || '0') || 0;
+      const phoneDigits = (order.phone || '').replace(/\D/g, '');
 
-      // Determine stage
-      let stage = 'Contacted';
-      let isPaid = false;
-      let amount = 0;
+      const existing = await prisma.influencer.findFirst({
+        where: {
+          OR: [
+            { name: { equals: order.name.trim() } },
+            { shippingName: { equals: order.name.trim() } },
+            ...(phoneDigits.length >= 7 ? [{ phone: { contains: phoneDigits.slice(-7) } }] : []),
+          ],
+        },
+      });
 
-      // Check if paid in reqWhat
-      const amountMatch = reqWhat.match(/(\d+)k/i);
-      if (amountMatch) {
-        isPaid = true;
-        amount = parseInt(amountMatch[1], 10) * 1000;
-      } else if (reqWhat.toLowerCase().includes('charge') || reqWhat.toLowerCase().includes('paid')) {
-        isPaid = true;
-        amount = 15000;
-      }
-
-      if (statusRaw.toLowerCase() === 'delivered') {
-        stage = row['Influencer posted'] === 'Yes' || (notes && notes.includes('http')) ? 'Content received' : 'Content pending';
-      } else if (statusRaw.toLowerCase() === 'dispatched' || shippedRaw.toLowerCase() === 'yes') {
-        stage = 'Shipped';
-      } else if (statusRaw.toLowerCase() === 'to be dispatched') {
-        stage = 'Ready to ship';
-      } else if (address && phone) {
-        if (isPaid) {
-          stage = 'Awaiting approval';
-        } else {
-          stage = 'Ready to ship';
-        }
-      } else if (products || reqWhat) {
-        stage = 'Package agreed';
-      } else if (row['Reaced Out'] === 'Yes' || row['Reached Out'] === 'Yes') {
-        stage = 'Replied';
-      }
-
-      // Extract city from address
-      let city = (row['City'] || '').trim();
-      if (!city && address) {
-        const lowerAddr = address.toLowerCase();
-        if (lowerAddr.includes('lahore') || lowerAddr.includes('lhr')) city = 'Lahore';
-        else if (lowerAddr.includes('karachi') || lowerAddr.includes('khi')) city = 'Karachi';
-        else if (lowerAddr.includes('islamabad') || lowerAddr.includes('isb')) city = 'Islamabad';
-        else if (lowerAddr.includes('rawalpindi') || lowerAddr.includes('rwp')) city = 'Rawalpindi';
-        else if (lowerAddr.includes('faisalabad')) city = 'Faisalabad';
-        else if (lowerAddr.includes('hyderabad')) city = 'Hyderabad';
-        else if (lowerAddr.includes('sialkot')) city = 'Sialkot';
-        else if (lowerAddr.includes('gujranwala')) city = 'Gujranwala';
-        else if (lowerAddr.includes('peshawar')) city = 'Peshawar';
-        else city = 'Lahore';
-      }
-
-      try {
-        const influencer = await prisma.influencer.create({
+      if (existing) {
+        await prisma.influencer.update({
+          where: { id: existing.id },
           data: {
-            name: name || igHandle,
-            igHandle: igHandle.startsWith('@') ? igHandle : `@${igHandle}`,
-            followerCount: Math.floor(Math.random() * 80000) + 15000,
-            category: category || 'Lifestyle',
-            stars: stars || '⭐⭐⭐⭐',
-            shippingName: name || igHandle,
-            address: address || 'TBD',
-            phone: phone || '03001234567',
-            email: (row['Email Address'] && row['Email Address'] !== '-') ? row['Email Address'] : null,
-            city: city || 'Lahore',
-            prPackage: products || 'Hair Revival Trio',
-            products: products,
-            isPaid: isPaid,
-            amount: amount,
-            stage: stage,
-            notes: notes,
-            discountCode: discountCode || null,
-            salesGenerated: salesGen,
-            createdById: ownerUser.id,
-            assignedToId: ownerUser.id,
-            lastEditedById: ownerUser.id,
-            deliverables: {
-              create: [
-                {
-                  type: reqWhat || '1 Reel + 1 Story',
-                  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                  received: stage === 'Content received',
-                  proofUrl: (notes && notes.includes('instagram.com/reel')) ? notes : (stage === 'Content received' ? 'https://www.instagram.com/p/DBh8_sample' : null),
-                  receivedAt: stage === 'Content received' ? new Date() : null,
-                }
-              ]
-            },
-            dispatch: {
-              create: {
-                status: (stage === 'Shipped' || stage === 'Content pending' || stage === 'Content received') ? 'Delivered' : (stage === 'Ready to ship' ? 'Ready' : 'Ready'),
-                shippedDate: (stage === 'Shipped' || stage === 'Content pending' || stage === 'Content received') ? new Date('2026-10-25') : null,
-                deliveredDate: (stage === 'Content pending' || stage === 'Content received') ? new Date('2026-10-28') : null,
-                trackingNumber: row['Notes/Tracking ID'] || (stage === 'Shipped' ? '127164' + Math.floor(100 + Math.random() * 899) : null),
-              }
-            },
-            approval: isPaid ? {
-              create: {
-                amount: amount,
-                status: (stage === 'Awaiting approval') ? 'PENDING' : 'APPROVED',
-                approverId: (stage !== 'Awaiting approval') ? userMap['humza'].id : null,
-                decidedAt: (stage !== 'Awaiting approval') ? new Date() : null,
-                note: 'Approved for campaign reach & target demographic',
-              }
-            } : undefined
-          }
+            phone: order.phone || existing.phone,
+            address: order.address || existing.address,
+            city: order.city || existing.city,
+            products: order.products || existing.products,
+            stage: order.stage,
+            assignedToId: assignedUser.id,
+            lastEditedById: userMap['ali']?.id || defaultUser.id,
+          },
         });
 
-        // Add initial activity log
-        await prisma.activityLog.create({
-          data: {
-            entity: 'Influencer',
-            recordId: influencer.id,
-            influencerId: influencer.id,
-            action: 'CREATED',
-            details: `Imported from Google Master Sheet by ${ownerUser.name}`,
-            changedById: ownerUser.id,
-          }
+        await prisma.dispatch.upsert({
+          where: { influencerId: existing.id },
+          update: {
+            status: order.dispatch_status,
+            trackingNumber: order.tracking || null,
+            shippedDate: shippedDate,
+            deliveredDate: deliveredDate,
+          },
+          create: {
+            influencerId: existing.id,
+            status: order.dispatch_status,
+            trackingNumber: order.tracking || null,
+            shippedDate: shippedDate,
+            deliveredDate: deliveredDate,
+          },
         });
 
-        count++;
-        if (count >= 150) break; // Seed the top 150 representative influencers
-      } catch (err) {
-        // Skip duplicate or validation errors
+        updatedCount++;
+      } else {
+        const cleanHandle = '@' + order.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+        const newInf = await prisma.influencer.create({
+          data: {
+            name: order.name,
+            igHandle: cleanHandle,
+            followerCount: 15000,
+            category: 'Skinfluencer',
+            stars: '⭐⭐⭐⭐',
+            shippingName: order.name,
+            address: order.address,
+            phone: order.phone || '0300-0000000',
+            email: order.email || null,
+            city: order.city,
+            prPackage: order.products || 'Custom Package',
+            products: order.products,
+            stage: order.stage,
+            isPaid: false,
+            amount: 0,
+            createdById: assignedUser.id,
+            assignedToId: assignedUser.id,
+            createdAt: orderDate,
+          },
+        });
+
+        await prisma.deliverable.create({
+          data: {
+            influencerId: newInf.id,
+            type: '1 Reel + 1 Story',
+            dueDate: new Date(orderDate.getTime() + 14 * 24 * 60 * 60 * 1000),
+            received: false,
+          },
+        });
+
+        await prisma.dispatch.create({
+          data: {
+            influencerId: newInf.id,
+            status: order.dispatch_status,
+            trackingNumber: order.tracking || null,
+            sentToOpsDate: orderDate,
+            shippedDate: shippedDate,
+            deliveredDate: deliveredDate,
+          },
+        });
+
+        createdCount++;
       }
     }
-    console.log(`Seeded ${count} influencers with deliverables, dispatches and approvals!`);
+
+    console.log(`Sync completed: ${updatedCount} updated, ${createdCount} created.`);
   }
 
-  // Add initial notifications for demo
-  const humza = userMap['humza'];
-  const zain = userMap['zain'];
-  const amna = userMap['amna'];
-
-  if (humza) {
-    await prisma.notification.create({
-      data: {
-        userId: humza.id,
-        title: 'New Paid Requests Awaiting Approval',
-        message: '3 influencers require your spend approval before dispatch.',
-        type: 'warning',
-        link: '/owner',
-      }
-    });
-  }
-
-  if (zain) {
-    await prisma.notification.create({
-      data: {
-        userId: zain.id,
-        title: 'Dispatch Queue Updated',
-        message: '22 packages are Ready to ship for operations hand-off.',
-        type: 'info',
-        link: '/manager',
-      }
-    });
-  }
-
-  if (amna) {
-    await prisma.notification.create({
-      data: {
-        userId: amna.id,
-        title: 'Deliverables Due',
-        message: '4 influencers have content pending past the 7-day delivery window.',
-        type: 'alert',
-        link: '/executor',
-      }
-    });
-  }
-
-  console.log('Database seeding completed successfully!');
+  const totalInDb = await prisma.influencer.count();
+  console.log(`Total influencers in DB: ${totalInDb}`);
 }
 
 main()

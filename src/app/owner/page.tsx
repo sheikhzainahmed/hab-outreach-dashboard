@@ -24,6 +24,7 @@ import {
   CheckSquare,
   BarChart3,
   Search,
+  MessageSquare,
 } from 'lucide-react';
 
 function OwnerPageContent() {
@@ -336,7 +337,15 @@ function OwnerPageContent() {
                                 {inf.category || 'Lifestyle'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-slate-800 font-semibold">{deliverable}</td>
+                            <td className="px-4 py-3 text-slate-800 font-semibold">
+                              <div>{deliverable}</div>
+                              {inf.approval?.note && (
+                                <div className="mt-1 text-[11px] font-normal text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-200 inline-flex items-center gap-1">
+                                  <MessageSquare className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate max-w-[180px]">Note: "{inf.approval.note}"</span>
+                                </div>
+                              )}
+                            </td>
                             <td className="px-4 py-3 font-bold text-amber-700">
                               PKR {fee.toLocaleString()}
                             </td>
@@ -344,28 +353,46 @@ function OwnerPageContent() {
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setActionNote(inf.approval?.note || '');
+                                    setActionApproval({
+                                      id: inf.approval.id,
+                                      action: 'NOTE',
+                                      amount: fee,
+                                      influencerName: inf.name,
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1 transition-colors"
+                                  title="Add guidance or feedback for executor"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                  Note
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActionNote('');
                                     setActionApproval({
                                       id: inf.approval.id,
                                       action: 'APPROVE',
                                       amount: fee,
                                       influencerName: inf.name,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   className="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center gap-1 shadow-sm transition-colors"
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                   Approve
                                 </button>
                                 <button
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setActionNote('');
                                     setActionApproval({
                                       id: inf.approval.id,
                                       action: 'REJECT',
                                       amount: fee,
                                       influencerName: inf.name,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1 transition-colors"
                                 >
                                   <X className="w-3.5 h-3.5" />
@@ -476,25 +503,57 @@ function OwnerPageContent() {
         </main>
       </div>
 
-      {/* Decision Note Modal */}
+      {/* Decision / Feedback Note Modal */}
       {actionApproval && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 animate-in fade-in zoom-in-95">
             <h3 className="text-base font-serif font-bold text-slate-900">
-              {actionApproval.action === 'APPROVE' ? 'Approve Spend' : 'Reject Collaboration'}
+              {actionApproval.action === 'APPROVE'
+                ? 'Approve Spend'
+                : actionApproval.action === 'REJECT'
+                ? 'Reject Collaboration'
+                : 'Add Instruction / Feedback Note'}
             </h3>
             <p className="text-xs text-slate-600">
               {actionApproval.action === 'APPROVE'
-                ? `Confirming approval of PKR ${actionApproval.amount.toLocaleString()} for ${actionApproval.influencerName}. This will advance the package into the Manager dispatch queue.`
-                : `Rejecting collaboration request for ${actionApproval.influencerName}. The influencer will be moved to "Removed / on hold".`}
+                ? `Confirming approval of PKR ${actionApproval.amount.toLocaleString()} for ${actionApproval.influencerName}. This will advance the package into the dispatch queue.`
+                : actionApproval.action === 'REJECT'
+                ? `Rejecting collaboration request for ${actionApproval.influencerName}. The influencer will be moved to "Removed / on hold".`
+                : `Add a guidance or negotiation note for ${actionApproval.influencerName}. The collaboration stays pending and the executor is notified.`}
             </p>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Feedback Note (Optional)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  {actionApproval.action === 'NOTE' ? 'Guidance for Executor (Required)' : 'Feedback Note (Optional)'}
+                </label>
+              </div>
+
+              {/* 1-Click Quick Suggestion Chips */}
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {[
+                  'Quote is too high, negotiate for lower price',
+                  'Counter-offer PKR 10k + extra PR products',
+                  'Ask for 1 extra Reel & 2 Stories before signing',
+                  'Verify follower engagement & authenticity first',
+                ].map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => setActionNote(chip)}
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors text-left"
+                  >
+                    + {chip}
+                  </button>
+                ))}
+              </div>
+
               <textarea
                 rows={3}
-                placeholder="Reason or guidance for the executor..."
+                placeholder={
+                  actionApproval.action === 'NOTE'
+                    ? "e.g., Quote is too high, negotiate for lower price, or counter-offer with..."
+                    : "Optional note or reason for the executor..."
+                }
                 value={actionNote}
                 onChange={(e) => setActionNote(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
@@ -502,21 +561,32 @@ function OwnerPageContent() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
-                onClick={() => setActionApproval(null)}
+                onClick={() => {
+                  setActionApproval(null);
+                  setActionNote('');
+                }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDecision}
-                disabled={submitting}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm ${
+                disabled={submitting || (actionApproval.action === 'NOTE' && !actionNote.trim())}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm disabled:opacity-50 transition-colors ${
                   actionApproval.action === 'APPROVE'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-rose-600 hover:bg-rose-700'
+                    : actionApproval.action === 'REJECT'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
-                {submitting ? 'Submitting...' : `Confirm ${actionApproval.action === 'APPROVE' ? 'Approval' : 'Rejection'}`}
+                {submitting
+                  ? 'Submitting...'
+                  : actionApproval.action === 'APPROVE'
+                  ? 'Confirm Approval'
+                  : actionApproval.action === 'REJECT'
+                  ? 'Confirm Rejection'
+                  : 'Send Note to Executor'}
               </button>
             </div>
           </div>

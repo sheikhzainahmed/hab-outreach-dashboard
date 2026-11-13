@@ -14,6 +14,8 @@ export default async function HomePage() {
     redirect('/owner');
   } else if (user.role === 'MANAGER') {
     redirect('/manager');
+  } else if (user.role === 'OPERATIONS') {
+    redirect('/operations');
   } else {
     redirect('/executor');
   }

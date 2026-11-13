@@ -31,6 +31,7 @@ export default function LoginPage() {
 
       if (data.user.role === 'OWNER') router.push('/owner');
       else if (data.user.role === 'MANAGER') router.push('/manager');
+      else if (data.user.role === 'OPERATIONS') router.push('/operations');
       else router.push('/executor');
 
       router.refresh();
@@ -44,6 +45,7 @@ export default function LoginPage() {
   const demoAccounts = [
     { name: 'Humza', role: 'Owner', email: 'humza@hiraalibeauty.com', color: 'from-amber-500 to-orange-600' },
     { name: 'Zain', role: 'Manager', email: 'zain@hiraalibeauty.com', color: 'from-purple-600 to-indigo-600' },
+    { name: 'Ali', role: 'Operations', email: 'ali@hiraalibeauty.com', color: 'from-teal-600 to-emerald-600' },
     { name: 'Huzaifa', role: 'Coordinator', email: 'huzaifa@hiraalibeauty.com', color: 'from-blue-600 to-cyan-600' },
     { name: 'Amna', role: 'Executor', email: 'amna@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },
     { name: 'Fatima', role: 'Executor', email: 'fatima@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },

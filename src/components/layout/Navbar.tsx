@@ -69,6 +69,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
         // Redirect to their default view
         if (data.user.role === 'OWNER') router.push('/owner');
         else if (data.user.role === 'MANAGER') router.push('/manager');
+        else if (data.user.role === 'OPERATIONS') router.push('/operations');
         else router.push('/executor');
         router.refresh();
       }
@@ -99,6 +100,8 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
         return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'MANAGER':
         return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'OPERATIONS':
+        return 'bg-teal-100 text-teal-800 border-teal-300';
       case 'COORDINATOR':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       default:

@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Layers,
   Sparkles,
+  Package,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +27,7 @@ function SidebarNav({ role }: SidebarProps) {
 
   const isOwner = role === 'OWNER';
   const isManager = role === 'MANAGER';
+  const isOperations = role === 'OPERATIONS';
   const isCoordinator = role === 'COORDINATOR';
   const isExecutor = role === 'EXECUTOR' || isCoordinator;
 
@@ -70,6 +73,8 @@ function SidebarNav({ role }: SidebarProps) {
               ? 'Owner Workspace'
               : isManager
               ? 'Manager Workspace'
+              : isOperations
+              ? 'Operations Workspace'
               : isCoordinator
               ? 'Coordinator Workspace'
               : 'Executor Workspace'}
@@ -77,6 +82,27 @@ function SidebarNav({ role }: SidebarProps) {
         </div>
 
         <nav className="space-y-1">
+          {isOperations && (
+            <>
+              <Link href="/operations" className={navItemClass('/operations')}>
+                <Truck className="w-4 h-4 text-teal-600" />
+                <span>Confirmed Orders</span>
+              </Link>
+              <Link href="/operations?status=Ready" className={navItemClass('/operations?status=Ready')}>
+                <Package className="w-4 h-4 text-amber-600" />
+                <span>To Be Dispatched</span>
+              </Link>
+              <Link href="/operations?status=Shipped" className={navItemClass('/operations?status=Shipped')}>
+                <Truck className="w-4 h-4 text-blue-600" />
+                <span>Dispatched (In Transit)</span>
+              </Link>
+              <Link href="/operations?status=Delivered" className={navItemClass('/operations?status=Delivered')}>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Delivered</span>
+              </Link>
+            </>
+          )}
+
           {isExecutor && (
             <>
               <Link href="/executor" className={navItemClass('/executor')}>

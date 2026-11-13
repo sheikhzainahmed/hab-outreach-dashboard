@@ -22,11 +22,11 @@ export async function POST(
 
     const { id: approvalId } = await params;
     const body = await request.json();
-    const { action, note } = body; // action: 'APPROVE' | 'REJECT'
+    const { action, note } = body; // action: 'APPROVE' | 'REJECT' | 'NOTE'
 
-    if (action !== 'APPROVE' && action !== 'REJECT') {
+    if (action !== 'APPROVE' && action !== 'REJECT' && action !== 'NOTE') {
       return NextResponse.json(
-        { error: 'Invalid action. Must be APPROVE or REJECT' },
+        { error: 'Invalid action. Must be APPROVE, REJECT, or NOTE' },
         { status: 400 }
       );
     }
@@ -44,6 +44,49 @@ export async function POST(
       return NextResponse.json({ error: 'Approval request not found' }, { status: 404 });
     }
 
+    // 1. Handling NOTE ONLY (e.g. "quote is too high, negotiate lower")
+    if (action === 'NOTE') {
+      if (!note || !note.trim()) {
+        return NextResponse.json({ error: 'Please enter a note or instruction' }, { status: 400 });
+      }
+
+      const updatedApproval = await prisma.approval.update({
+        where: { id: approvalId },
+        data: {
+          note: note.trim(),
+          approverId: user.id,
+        },
+      });
+
+      // Write audit trail
+      await prisma.activityLog.create({
+        data: {
+          entity: 'Approval',
+          recordId: approvalId,
+          influencerId: approval.influencerId,
+          action: 'NOTE_ADDED',
+          details: `Humza added feedback note: "${note.trim()}" for ${approval.influencer.name}`,
+          changedById: user.id,
+        },
+      });
+
+      // Notify requesting executor specifically
+      if (approval.influencer.assignedToId) {
+        await prisma.notification.create({
+          data: {
+            userId: approval.influencer.assignedToId,
+            title: `💬 Note from Humza: ${approval.influencer.igHandle}`,
+            message: `Humza left guidance for ${approval.influencer.name} (PKR ${approval.amount.toLocaleString()}): "${note.trim()}"`,
+            link: '/executor',
+            type: 'alert',
+          },
+        });
+      }
+
+      return NextResponse.json({ success: true, approval: updatedApproval });
+    }
+
+    // 2. Handling APPROVE or REJECT
     const isApprove = action === 'APPROVE';
     const newStatus = isApprove ? 'APPROVED' : 'REJECTED';
     const newStage = isApprove ? 'Ready to ship' : 'Removed / on hold';
@@ -92,13 +135,13 @@ export async function POST(
       },
     });
 
-    // Notify requesting executor
+    // Notify requesting executor specifically
     if (approval.influencer.assignedToId) {
       await prisma.notification.create({
         data: {
           userId: approval.influencer.assignedToId,
-          title: `Paid Collab ${isApprove ? 'Approved' : 'Rejected'}`,
-          message: `${user.name} has ${isApprove ? 'approved' : 'rejected'} your request for ${approval.influencer.igHandle} (PKR ${approval.amount.toLocaleString()})${note ? ` — Note: ${note}` : ''}`,
+          title: `${isApprove ? '✅ Collab Approved' : '❌ Collab Rejected'}: ${approval.influencer.igHandle}`,
+          message: `${user.name} has ${isApprove ? 'approved' : 'rejected'} your request for ${approval.influencer.name} (PKR ${approval.amount.toLocaleString()})${note ? ` — Note: "${note.trim()}"` : ''}`,
           link: '/executor',
           type: isApprove ? 'success' : 'alert',
         },

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const schemaPath = path.join(__dirname, '../prisma/schema.prisma');
 let schema = fs.readFileSync(schemaPath, 'utf8');
@@ -21,6 +22,15 @@ if (isPostgres) {
   }
   fs.writeFileSync(schemaPath, schema);
   console.log('Switched Prisma provider to "postgresql" with directUrl for Neon/Vercel.');
+
+  try {
+    console.log('Pushing Prisma schema to Neon PostgreSQL...');
+    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit', env: process.env });
+    console.log('Seeding initial data (team & 83 influencers)...');
+    execSync('node prisma/seed.js', { stdio: 'inherit', env: process.env });
+  } catch (err) {
+    console.error('Error during db push or seed:', err);
+  }
 } else {
   console.log('Using current Prisma provider.');
 }

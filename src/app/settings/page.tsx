@@ -182,6 +182,7 @@ export default function SettingsPage() {
                           className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                         >
                           <option value="EXECUTOR">EXECUTOR</option>
+                          <option value="COORDINATOR">COORDINATOR</option>
                           <option value="MANAGER">MANAGER</option>
                           <option value="OWNER">OWNER</option>
                         </select>
@@ -272,6 +273,7 @@ export default function SettingsPage() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500"
                 >
                   <option value="EXECUTOR">EXECUTOR (Data entry & outreach)</option>
+                  <option value="COORDINATOR">COORDINATOR (Outreach & Coordination)</option>
                   <option value="MANAGER">MANAGER (Operations & dispatch)</option>
                   <option value="OWNER">OWNER (Oversight & spend approvals)</option>
                 </select>

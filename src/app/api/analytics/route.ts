@@ -113,7 +113,7 @@ export async function GET(request: Request) {
         deliverablesOverdue: repOverdue,
         fulfillmentRate,
       };
-    }).filter((e) => e.outreachVolume > 0 || e.role === 'EXECUTOR');
+    }).filter((e) => e.outreachVolume > 0 || e.role === 'EXECUTOR' || e.role === 'COORDINATOR');
 
     // Package type breakdown
     const packageMap: Record<string, { total: number; shipped: number; received: number }> = {};

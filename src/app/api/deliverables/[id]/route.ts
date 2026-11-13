@@ -25,8 +25,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Deliverable not found' }, { status: 404 });
     }
 
-    // Role check: Executors can only update deliverables for their own influencers
-    if (user.role === 'EXECUTOR' && current.influencer.assignedToId !== user.id) {
+    // Role check: Executors/Coordinators can only update deliverables for their own influencers
+    if ((user.role === 'EXECUTOR' || user.role === 'COORDINATOR') && current.influencer.assignedToId !== user.id) {
       return NextResponse.json(
         { error: 'You can only update deliverables for your own influencers' },
         { status: 403 }

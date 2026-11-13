@@ -99,6 +99,8 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
         return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'MANAGER':
         return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'COORDINATOR':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
       default:
         return 'bg-rose-100 text-rose-800 border-rose-300';
     }

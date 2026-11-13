@@ -60,8 +60,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Influencer not found' }, { status: 404 });
     }
 
-    // Role check: Executors can only edit their own records unless Manager/Owner
-    if (user.role === 'EXECUTOR' && current.assignedToId !== user.id) {
+    // Role check: Executors/Coordinators can only edit their own records unless Manager/Owner
+    if ((user.role === 'EXECUTOR' || user.role === 'COORDINATOR') && current.assignedToId !== user.id) {
       return NextResponse.json(
         { error: 'You do not have permission to edit records assigned to other executors' },
         { status: 403 }
@@ -185,7 +185,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (user.role === 'EXECUTOR') {
+    if (user.role === 'EXECUTOR' || user.role === 'COORDINATOR') {
       return NextResponse.json(
         { error: 'Executors cannot delete records. Please contact Zain or Humza.' },
         { status: 403 }

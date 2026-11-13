@@ -23,8 +23,8 @@ export async function GET(request: Request) {
     const where: any = {};
 
     // Permission scoping:
-    // Executors see only their own by default, unless allTeam=true is passed (for read-only view)
-    if (user.role === 'EXECUTOR' && !allTeam && !executorId) {
+    // Executors and Coordinators see only their own by default, unless allTeam=true is passed (for read-only view)
+    if ((user.role === 'EXECUTOR' || user.role === 'COORDINATOR') && !allTeam && !executorId) {
       where.assignedToId = user.id;
     } else if (executorId && executorId !== 'all') {
       where.assignedToId = executorId;

@@ -44,7 +44,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (user.role === 'EXECUTOR') {
+    if (user.role === 'EXECUTOR' || user.role === 'COORDINATOR') {
       return NextResponse.json(
         { error: 'Only the Manager (Zain) or Owner can update package dispatch statuses' },
         { status: 403 }

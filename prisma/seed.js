@@ -21,7 +21,7 @@ async function main() {
     { name: 'Maryam', email: 'maryam@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Sophia', email: 'sophia@hiraalibeauty.com', role: 'EXECUTOR' },
     { name: 'Maimoona', email: 'maimoona@hiraalibeauty.com', role: 'EXECUTOR' },
-    { name: 'Huzaifa', email: 'huzaifa@hiraalibeauty.com', role: 'EXECUTOR' },
+    { name: 'Huzaifa', email: 'huzaifa@hiraalibeauty.com', role: 'COORDINATOR' },
   ];
 
   const userMap = {};

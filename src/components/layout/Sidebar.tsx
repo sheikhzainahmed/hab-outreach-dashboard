@@ -71,7 +71,7 @@ function SidebarNav({ role }: SidebarProps) {
         <div className="px-3 mb-2 flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             {isOwner
-              ? 'Owner Workspace'
+              ? 'Executive Workspace'
               : isManager
               ? 'Manager Workspace'
               : isOperations

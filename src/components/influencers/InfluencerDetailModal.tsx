@@ -347,6 +347,29 @@ export default function InfluencerDetailModal({
                       Do Not Ship (Payment Only)
                     </span>
                   )}
+                  {influencer.isPaid && (
+                    <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-semibold text-slate-500">Payout Status:</span>
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
+                        influencer.paymentStatus === 'FULLY_PAID'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : influencer.paymentStatus === 'ADVANCE_PAID'
+                          ? 'bg-teal-100 text-teal-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {influencer.paymentStatus === 'FULLY_PAID'
+                          ? 'Fully Paid ✓'
+                          : influencer.paymentStatus === 'ADVANCE_PAID'
+                          ? 'Advance Paid'
+                          : 'Pending Payout'}
+                      </span>
+                    </div>
+                  )}
+                  {influencer.paymentProofUrl && (
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                      Payment Ref: {influencer.paymentProofUrl}
+                    </p>
+                  )}
                 </div>
               </div>
 

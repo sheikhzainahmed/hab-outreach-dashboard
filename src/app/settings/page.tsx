@@ -134,7 +134,7 @@ export default function SettingsPage() {
                 Team Access & Role Management
               </h1>
               <p className="text-xs text-slate-500 mt-1">
-                Manage accounts for Humza (Owner), Zain (Manager), and Executors (Fatima, Minahil, Amna, Maryam, Sophia).
+                Manage accounts for Humza (Director), Zain (Manager), and Executors (Fatima, Minahil, Amna, Maryam, Sophia).
               </p>
             </div>
 
@@ -185,7 +185,7 @@ export default function SettingsPage() {
                           <option value="COORDINATOR">COORDINATOR</option>
                           <option value="OPERATIONS">OPERATIONS</option>
                           <option value="MANAGER">MANAGER</option>
-                          <option value="OWNER">OWNER</option>
+                          <option value="OWNER">DIRECTOR</option>
                         </select>
                       </td>
                       <td className="px-5 py-3.5 font-bold text-slate-900">
@@ -277,7 +277,7 @@ export default function SettingsPage() {
                   <option value="COORDINATOR">COORDINATOR (Outreach & Coordination)</option>
                   <option value="OPERATIONS">OPERATIONS (Physical dispatch & packaging)</option>
                   <option value="MANAGER">MANAGER (Operations & dispatch oversight)</option>
-                  <option value="OWNER">OWNER (Oversight & spend approvals)</option>
+                  <option value="OWNER">DIRECTOR (Executive oversight & spend approvals)</option>
                 </select>
               </div>
 

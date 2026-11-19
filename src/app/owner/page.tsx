@@ -235,7 +235,7 @@ function OwnerPageContent() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-serif font-bold text-slate-900">
-                Owner Executive Center
+                Executive Leadership Center
               </h1>
               <p className="text-xs text-slate-500 mt-1">
                 Real-time commercial spend, approval decisions, and team conversion metrics.
@@ -418,7 +418,7 @@ function OwnerPageContent() {
                         <th className="px-4 py-3">Deliverable Requested</th>
                         <th className="px-4 py-3">Fee / Cost</th>
                         <th className="px-4 py-3">Executor</th>
-                        <th className="px-4 py-3 text-right">Owner Sign-off</th>
+                        <th className="px-4 py-3 text-right">Executive Sign-off</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -803,42 +803,71 @@ function OwnerPageContent() {
                               {item.assignedTo}
                             </td>
 
-                            {/* Action */}
+                            {/* Action / Mark Paid */}
                             <td className="px-4 py-3 text-right">
-                              {isAdvanceDue && (
-                                <button
-                                  onClick={() => {
-                                    setPaymentProofRef('');
-                                    setPaymentProofNotes('');
-                                    setPaymentModal({ open: true, item, action: 'MARK_ADVANCE_PAID' });
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm transition-all"
-                                >
-                                  Mark Advance Paid
-                                </button>
-                              )}
-                              {isCompletionDue && (
+                              {isFullyPaid ? (
+                                <div className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  <span>Paid</span>
+                                  {item.paymentProofUrl && (
+                                    <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded ml-1">
+                                      {item.paymentProofUrl}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : isAdvancePaid ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                    Adv Paid (PKR {(item.advanceAmount || (item.amount * 0.5)).toLocaleString()})
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setPaymentProofRef('');
+                                      setPaymentProofNotes('');
+                                      setPaymentModal({ open: true, item, action: 'MARK_FULLY_PAID' });
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-sm transition-all flex items-center gap-1"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    Mark Final Paid (PKR {(item.completionAmount || (item.amount * 0.5)).toLocaleString()})
+                                  </button>
+                                </div>
+                              ) : item.advancePercentage > 0 ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setPaymentProofRef('');
+                                      setPaymentProofNotes('');
+                                      setPaymentModal({ open: true, item, action: 'MARK_ADVANCE_PAID' });
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 shadow-xs transition-all whitespace-nowrap"
+                                  >
+                                    Mark Adv Paid ({item.advancePercentage}%)
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPaymentProofRef('');
+                                      setPaymentProofNotes('');
+                                      setPaymentModal({ open: true, item, action: 'MARK_FULLY_PAID' });
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all whitespace-nowrap flex items-center gap-1"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    Mark Full Paid
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
                                   onClick={() => {
                                     setPaymentProofRef('');
                                     setPaymentProofNotes('');
                                     setPaymentModal({ open: true, item, action: 'MARK_FULLY_PAID' });
                                   }}
-                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-sm flex items-center gap-1.5 transition-all ml-auto"
                                 >
-                                  Mark Final Paid
+                                  <Check className="w-3.5 h-3.5" />
+                                  Mark as Paid (PKR {item.amount.toLocaleString()})
                                 </button>
-                              )}
-                              {isFullyPaid && (
-                                <div className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Paid</span>
-                                  {item.paymentProofUrl && (
-                                    <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                      ({item.paymentProofUrl})
-                                    </span>
-                                  )}
-                                </div>
                               )}
                             </td>
                           </tr>
@@ -1040,20 +1069,49 @@ function OwnerPageContent() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 animate-in fade-in zoom-in-95">
             <h3 className="text-base font-serif font-bold text-slate-900 flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-emerald-600" />
-              {paymentModal.action === 'MARK_ADVANCE_PAID' ? 'Confirm Advance Payment Sent' : 'Confirm Final Payment Sent'}
+              {paymentModal.action === 'MARK_ADVANCE_PAID' ? 'Confirm Advance Payment' : 'Confirm Full / Final Payment'}
             </h3>
+
+            {/* Payment Type Selection */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setPaymentModal({ ...paymentModal, action: 'MARK_ADVANCE_PAID' })}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  paymentModal.action === 'MARK_ADVANCE_PAID'
+                    ? 'bg-white text-amber-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Advance Payment ({paymentModal.item.advancePercentage || 50}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentModal({ ...paymentModal, action: 'MARK_FULLY_PAID' })}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  paymentModal.action === 'MARK_FULLY_PAID'
+                    ? 'bg-white text-emerald-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {paymentModal.item.advancePercentage > 0 ? 'Final Payment' : '100% Full Payment'}
+              </button>
+            </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <div><strong>Creator:</strong> {paymentModal.item.name} ({paymentModal.item.igHandle})</div>
               <div><strong>Bank:</strong> {paymentModal.item.bankName} - {paymentModal.item.accountTitle}</div>
               <div><strong>Account #:</strong> <span className="font-mono">{paymentModal.item.accountNumber}</span></div>
               <div>
-                <strong>Amount Payable:</strong>{' '}
+                <strong>Amount Payable Now:</strong>{' '}
                 <span className="font-bold text-emerald-700 text-sm">
                   PKR{' '}
-                  {(paymentModal.action === 'MARK_ADVANCE_PAID'
-                    ? paymentModal.item.advanceAmount
-                    : paymentModal.item.completionAmount
+                  {Math.round(
+                    paymentModal.action === 'MARK_ADVANCE_PAID'
+                      ? (paymentModal.item.advanceAmount || (paymentModal.item.amount * (paymentModal.item.advancePercentage || 50)) / 100)
+                      : (paymentModal.item.paymentStatus === 'ADVANCE_PAID'
+                          ? (paymentModal.item.completionAmount || (paymentModal.item.amount - (paymentModal.item.advanceAmount || 0)))
+                          : paymentModal.item.amount)
                   ).toLocaleString()}
                 </span>
               </div>

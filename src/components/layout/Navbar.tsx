@@ -109,6 +109,15 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
     }
   };
 
+  const getRoleDisplayName = (user: { name?: string; role: string }) => {
+    if (user.role === 'OWNER') return 'Director';
+    if (user.role === 'COORDINATOR') return 'Coordinator';
+    if (user.role === 'OPERATIONS') return 'Operations';
+    if (user.role === 'MANAGER') return 'Manager';
+    if (user.name === 'Amna') return 'Lead';
+    return user.role;
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -142,7 +151,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
               </div>
               <span className="font-semibold text-slate-900">{currentUser.name}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${getRoleBadge(currentUser.role)}`}>
-                {currentUser.role}
+                {getRoleDisplayName(currentUser)}
               </span>
               <ChevronDown className="w-4 h-4 text-slate-400" />
             </button>
@@ -170,7 +179,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
                         <span>{u.name}</span>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${getRoleBadge(u.role)}`}>
-                        {u.role}
+                        {getRoleDisplayName(u)}
                       </span>
                     </button>
                   ))}

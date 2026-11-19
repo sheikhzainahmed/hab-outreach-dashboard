@@ -113,7 +113,7 @@ export async function PUT(
         return NextResponse.json(
           {
             error:
-              'Hard Guardrail: Paid collaborations must be officially approved by Humza (Owner) before advancing to dispatch.',
+              'Hard Guardrail: Paid collaborations must be officially approved by Humza (Director) before advancing to dispatch.',
           },
           { status: 403 }
         );

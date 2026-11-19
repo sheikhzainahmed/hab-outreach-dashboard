@@ -99,10 +99,22 @@ export default function KanbanBoard({
                           <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                             PKR {inf.amount?.toLocaleString()}
                           </span>
-                          {isAwaitingApproval && (
+                          {inf.paymentStatus === 'FULLY_PAID' ? (
+                            <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              ✓ Paid
+                            </span>
+                          ) : inf.paymentStatus === 'ADVANCE_PAID' ? (
+                            <span className="text-teal-700 font-bold bg-teal-50 border border-teal-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              Adv Paid
+                            </span>
+                          ) : isAwaitingApproval ? (
                             <span className="text-orange-600 font-bold flex items-center gap-0.5">
                               <ShieldAlert className="w-3 h-3" />
-                              Awaiting Humza
+                              Awaiting Director
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 font-medium bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                              Payable
                             </span>
                           )}
                         </div>

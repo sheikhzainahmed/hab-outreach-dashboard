@@ -583,7 +583,7 @@ export default function AddInfluencerModal({
                 </div>
 
                 <p className="text-[10px] text-amber-700 italic">
-                  Note: Humza (Owner) will be notified to review and approve this spend and bank schedule.
+                  Note: Humza (Director) will be notified to review and approve this spend and bank schedule.
                 </p>
               </div>
             ) : (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
@@ -54,6 +54,24 @@ function ManagerPageContent() {
   );
   const [copiedToast, setCopiedToast] = useState(false);
   const [execSearch, setExecSearch] = useState('');
+  const [overdueExecutorFilter, setOverdueExecutorFilter] = useState('all');
+
+  // Overdue executor counts and filtered list
+  const overdueExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    (healthData?.overdue || []).forEach((inf: any) => {
+      const name = inf.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [healthData?.overdue]);
+
+  const filteredOverdueList = useMemo(() => {
+    if (overdueExecutorFilter === 'all') return healthData?.overdue || [];
+    return (healthData?.overdue || []).filter(
+      (inf: any) => (inf.assignedTo?.name || 'Unassigned').toLowerCase() === overdueExecutorFilter.toLowerCase()
+    );
+  }, [healthData?.overdue, overdueExecutorFilter]);
 
   // Modals
   const [selectedInfluencer, setSelectedInfluencer] = useState<any>(null);
@@ -834,11 +852,32 @@ function ManagerPageContent() {
 
               {/* Detailed Breakdown for Overdue Deliverables */}
               {healthData.overdue.length > 0 && (
-                <div className="bg-white rounded-3xl border border-rose-200 p-6 shadow-sm">
-                  <h3 className="text-sm font-bold text-rose-900 mb-3 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-rose-600" />
-                    Overdue Content Posts ({healthData.overdue.length})
-                  </h3>
+                <div className="bg-white rounded-3xl border border-rose-200 p-6 shadow-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="text-sm font-bold text-rose-900 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      Overdue Content Posts ({filteredOverdueList.length}
+                      {overdueExecutorFilter !== 'all' ? ` of ${healthData.overdue.length}` : ''})
+                    </h3>
+
+                    {/* Assigned Executor Filter Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-rose-900">Filter by Executor:</label>
+                      <select
+                        value={overdueExecutorFilter}
+                        onChange={(e) => setOverdueExecutorFilter(e.target.value)}
+                        className="px-3 py-1.5 rounded-xl border border-rose-300 text-xs font-bold text-rose-950 bg-rose-50/90 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-xs"
+                      >
+                        <option value="all">All Executors ({healthData.overdue.length})</option>
+                        {overdueExecutors.map((e) => (
+                          <option key={e.name} value={e.name}>
+                            {e.name} ({e.count} overdue)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-rose-50/60 text-rose-900 uppercase font-bold">
@@ -846,27 +885,55 @@ function ManagerPageContent() {
                           <th className="p-2.5">Influencer</th>
                           <th className="p-2.5">Phone</th>
                           <th className="p-2.5">Deliverable</th>
-                          <th className="p-2.5">Assigned Executor</th>
+                          <th className="p-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <span>Assigned Executor</span>
+                              <select
+                                value={overdueExecutorFilter}
+                                onChange={(e) => setOverdueExecutorFilter(e.target.value)}
+                                className="text-[10px] font-bold bg-white text-rose-900 border border-rose-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-xs focus:outline-none focus:ring-1 focus:ring-rose-500"
+                              >
+                                <option value="all">All</option>
+                                {overdueExecutors.map((e) => (
+                                  <option key={e.name} value={e.name}>
+                                    {e.name} ({e.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </th>
                           <th className="p-2.5 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-rose-100">
-                        {healthData.overdue.map((inf: any) => (
-                          <tr key={inf.id} className="hover:bg-rose-50/30">
-                            <td className="p-2.5 font-bold text-slate-900">{inf.name} ({inf.igHandle})</td>
-                            <td className="p-2.5 font-mono">{inf.phone}</td>
-                            <td className="p-2.5 truncate max-w-xs">{inf.deliverables?.[0]?.type || 'Post'}</td>
-                            <td className="p-2.5">{inf.assignedTo?.name || 'Unassigned'}</td>
-                            <td className="p-2.5 text-right">
-                              <button
-                                onClick={() => setSelectedInfluencer(inf)}
-                                className="px-2.5 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg"
-                              >
-                                Follow Up
-                              </button>
+                        {filteredOverdueList.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-6 text-center text-slate-500 italic">
+                              No overdue deliverables found for &quot;{overdueExecutorFilter}&quot;.
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          filteredOverdueList.map((inf: any) => (
+                            <tr key={inf.id} className="hover:bg-rose-50/30 transition-colors">
+                              <td className="p-2.5 font-bold text-slate-900">{inf.name} ({inf.igHandle})</td>
+                              <td className="p-2.5 font-mono">{inf.phone}</td>
+                              <td className="p-2.5 truncate max-w-xs">{inf.deliverables?.[0]?.type || 'Post'}</td>
+                              <td className="p-2.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                                  {inf.assignedTo?.name || 'Unassigned'}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-right">
+                                <button
+                                  onClick={() => setSelectedInfluencer(inf)}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                                >
+                                  Follow Up
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>

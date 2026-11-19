@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
@@ -26,6 +26,13 @@ import {
   Search,
   MessageSquare,
   Database,
+  CreditCard,
+  Download,
+  Copy,
+  Building,
+  Upload,
+  FileSpreadsheet,
+  Percent,
 } from 'lucide-react';
 
 function OwnerPageContent() {
@@ -33,25 +40,34 @@ function OwnerPageContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') || 'overview';
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'approvals' | 'performance'>(
-    tabParam === 'approvals' ? 'approvals' : tabParam === 'performance' ? 'performance' : 'overview'
+  const [activeTab, setActiveTab] = useState<'overview' | 'approvals' | 'payments' | 'performance'>(
+    tabParam === 'approvals' ? 'approvals' : tabParam === 'payments' ? 'payments' : tabParam === 'performance' ? 'performance' : 'overview'
   );
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  const [payableData, setPayableData] = useState<any>({ summary: {}, payables: [] });
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'advance_due' | 'completion_due' | 'paid'>('all');
   const [loading, setLoading] = useState(true);
   const [execSearch, setExecSearch] = useState('');
 
   // Modals & Action Notes
   const [selectedInfluencer, setSelectedInfluencer] = useState<any>(null);
-  const [actionApproval, setActionApproval] = useState<any>(null); // { id, action: 'APPROVE' | 'REJECT' }
+  const [actionApproval, setActionApproval] = useState<any>(null); // { id, action: 'APPROVE' | 'REJECT' | 'NOTE' }
   const [actionNote, setActionNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Payment Payout Modal
+  const [paymentModal, setPaymentModal] = useState<{ open: boolean; item: any; action: 'MARK_ADVANCE_PAID' | 'MARK_FULLY_PAID' } | null>(null);
+  const [paymentProofRef, setPaymentProofRef] = useState('');
+  const [paymentProofNotes, setPaymentProofNotes] = useState('');
+  const [paymentUpdating, setPaymentUpdating] = useState(false);
+  const [copiedBankId, setCopiedBankId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (tabParam === 'approvals' || tabParam === 'performance' || tabParam === 'overview') {
+    if (tabParam === 'approvals' || tabParam === 'payments' || tabParam === 'performance' || tabParam === 'overview') {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -60,7 +76,7 @@ function OwnerPageContent() {
     fetchSession();
   }, []);
 
-  const handleTabChange = (tab: 'overview' | 'approvals' | 'performance') => {
+  const handleTabChange = (tab: 'overview' | 'approvals' | 'payments' | 'performance') => {
     setActiveTab(tab);
     if (tab === 'overview') router.push('/owner');
     else router.push(`/owner?tab=${tab}`);
@@ -85,9 +101,10 @@ function OwnerPageContent() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [analyticsRes, infRes] = await Promise.all([
+      const [analyticsRes, infRes, payRes] = await Promise.all([
         fetch('/api/analytics'),
         fetch('/api/influencers?stage=Awaiting approval&allTeam=true'),
+        fetch('/api/payments?filter=all'),
       ]);
 
       if (analyticsRes.ok) {
@@ -102,12 +119,71 @@ function OwnerPageContent() {
         );
         setPendingApprovals(pending);
       }
+
+      if (payRes.ok) {
+        const pData = await payRes.json();
+        setPayableData(pData);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleProcessPayment = async () => {
+    if (!paymentModal) return;
+    setPaymentUpdating(true);
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          influencerId: paymentModal.item.id,
+          action: paymentModal.action,
+          paymentProofUrl: paymentProofRef.trim() || undefined,
+          paymentNotes: paymentProofNotes.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Failed to update payment');
+        return;
+      }
+
+      setPaymentModal(null);
+      setPaymentProofRef('');
+      setPaymentProofNotes('');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      alert('Error updating payment status');
+    } finally {
+      setPaymentUpdating(false);
+    }
+  };
+
+  const handleCopyBank = (text: string, id: string) => {
+    if (!text || text === 'Not Provided') return;
+    navigator.clipboard.writeText(text);
+    setCopiedBankId(id);
+    setTimeout(() => setCopiedBankId(null), 1800);
+  };
+
+  const filteredPayables = useMemo(() => {
+    const list = payableData?.payables || [];
+    if (paymentFilter === 'advance_due') {
+      return list.filter((p: any) => p.isApproved && p.paymentStage === 'Advance Payment Due');
+    }
+    if (paymentFilter === 'completion_due') {
+      return list.filter((p: any) => p.isApproved && p.paymentStage === 'Work Complete Due');
+    }
+    if (paymentFilter === 'paid') {
+      return list.filter((p: any) => p.paymentStatus === 'FULLY_PAID' || p.paymentStatus === 'ADVANCE_PAID');
+    }
+    return list;
+  }, [payableData?.payables, paymentFilter]);
 
   const handleDecision = async () => {
     if (!actionApproval) return;
@@ -212,6 +288,23 @@ function OwnerPageContent() {
               {pendingApprovals.length > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                   {pendingApprovals.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleTabChange('payments')}
+              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 ${
+                activeTab === 'payments'
+                  ? 'text-amber-800 border-b-2 border-amber-600'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <CreditCard className="w-4 h-4 text-emerald-600" />
+              <span>Approved &amp; Payable Sheet</span>
+              {((payableData?.summary?.advanceDueCount || 0) + (payableData?.summary?.completionDueCount || 0)) > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {(payableData?.summary?.advanceDueCount || 0) + (payableData?.summary?.completionDueCount || 0)} Due
                 </span>
               )}
             </button>
@@ -358,8 +451,26 @@ function OwnerPageContent() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3 font-bold text-amber-700">
-                              PKR {fee.toLocaleString()}
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-amber-700">
+                                PKR {fee.toLocaleString()}
+                              </div>
+                              {inf.paymentTerms && (
+                                <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                                  {inf.paymentTerms}
+                                </div>
+                              )}
+                              {inf.bankName && (
+                                <div className="text-[10px] text-slate-600 bg-slate-100 rounded px-1.5 py-0.5 mt-1 inline-flex items-center gap-1 font-mono">
+                                  <Building className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span className="truncate max-w-[170px]">{inf.bankName} - {inf.accountTitle || ''}</span>
+                                </div>
+                              )}
+                              {inf.doNotShip && (
+                                <div className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 rounded px-1.5 py-0.5 mt-1 block font-bold">
+                                  No Dispatch (Payment Only)
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-slate-600">{inf.assignedTo?.name || 'Unassigned'}</td>
                             <td className="px-4 py-3 text-right">
@@ -419,6 +530,324 @@ function OwnerPageContent() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Approved & Payable Sheet Section */}
+          {(activeTab === 'overview' || activeTab === 'payments') && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
+                      Approved &amp; Payable Sheet
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {filteredPayables.length} Listed
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Bank details, advance payouts, work completion payments, and 1-click accounting export.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 1-Click Export for Online Banking / Accounts */}
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/api/payments?format=csv"
+                    download
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200 flex items-center gap-1.5 transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export Payment Sheet (CSV / Excel)
+                  </a>
+                </div>
+              </div>
+
+              {/* Payment Summary KPI Mini-cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Total Approved Spend
+                  </span>
+                  <p className="text-lg font-bold text-slate-900 mt-0.5">
+                    PKR {(payableData.summary?.totalCommittedPkr || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {payableData.summary?.approvedCollabs || 0} approved collaborations
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                    Advance Payments Due
+                  </span>
+                  <p className="text-lg font-bold text-amber-900 mt-0.5">
+                    PKR {(payableData.summary?.advanceDueAmount || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-semibold">
+                    {payableData.summary?.advanceDueCount || 0} creators awaiting advance
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200">
+                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">
+                    Work Complete Payments Due
+                  </span>
+                  <p className="text-lg font-bold text-blue-900 mt-0.5">
+                    PKR {(payableData.summary?.completionDueAmount || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-blue-700 mt-0.5 font-semibold">
+                    {payableData.summary?.completionDueCount || 0} content posts verified
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                    Total Disbursed / Paid
+                  </span>
+                  <p className="text-lg font-bold text-emerald-900 mt-0.5">
+                    PKR {(payableData.summary?.fullyPaidAmount || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5 font-semibold">
+                    {payableData.summary?.fullyPaidCount || 0} fully settled
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2 overflow-x-auto text-xs font-bold">
+                <button
+                  onClick={() => setPaymentFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                    paymentFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All ({payableData.payables?.length || 0})
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('advance_due')}
+                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                    paymentFilter === 'advance_due'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  }`}
+                >
+                  Advance Due ({payableData.summary?.advanceDueCount || 0})
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('completion_due')}
+                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                    paymentFilter === 'completion_due'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                  }`}
+                >
+                  Work Complete Due ({payableData.summary?.completionDueCount || 0})
+                </button>
+                <button
+                  onClick={() => setPaymentFilter('paid')}
+                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                    paymentFilter === 'paid'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  }`}
+                >
+                  Settled / Paid ({payableData.summary?.fullyPaidCount || 0})
+                </button>
+              </div>
+
+              {/* Payable Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="px-4 py-3 min-w-[150px]">Creator</th>
+                      <th className="px-4 py-3 min-w-[200px]">Bank Details</th>
+                      <th className="px-3 py-3 min-w-[90px]">Fee (PKR)</th>
+                      <th className="px-3 py-3 min-w-[120px]">Terms / Split</th>
+                      <th className="px-4 py-3 min-w-[150px]">Payment Stage</th>
+                      <th className="px-3 py-3 min-w-[90px]">Content</th>
+                      <th className="px-3 py-3 min-w-[90px]">Executor</th>
+                      <th className="px-4 py-3 min-w-[140px] text-right">Payout Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredPayables.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-10 text-center text-slate-400">
+                          No collaborations in this payable filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPayables.map((item: any) => {
+                        const isAdvanceDue = item.isApproved && item.paymentStage === 'Advance Payment Due';
+                        const isCompletionDue = item.isApproved && item.paymentStage === 'Work Complete Due';
+                        const isFullyPaid = item.paymentStatus === 'FULLY_PAID';
+                        const isAdvancePaid = item.paymentStatus === 'ADVANCE_PAID';
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Creator */}
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => setSelectedInfluencer(item)}
+                                className="font-bold text-slate-900 hover:text-rose-600 text-left transition-colors"
+                              >
+                                {item.name}
+                              </button>
+                              <div className="text-[11px] text-rose-600 font-semibold">{item.igHandle}</div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">{item.phone}</div>
+                            </td>
+
+                            {/* Bank Details */}
+                            <td className="px-4 py-3">
+                              <div className="space-y-0.5">
+                                <div className="font-bold text-slate-800 flex items-center gap-1">
+                                  <Building className="w-3 h-3 text-slate-400" />
+                                  <span>{item.bankName}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-600">
+                                  Title: <span className="font-semibold text-slate-800">{item.accountTitle}</span>
+                                </div>
+                                <div className="text-[11px] font-mono text-slate-700 flex items-center gap-1.5">
+                                  <span>{item.accountNumber}</span>
+                                  {item.accountNumber && item.accountNumber !== 'Not Provided' && (
+                                    <button
+                                      onClick={() => handleCopyBank(item.accountNumber, item.id)}
+                                      className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                                      title="Copy Account Number / IBAN"
+                                    >
+                                      {copiedBankId === item.id ? (
+                                        <Check className="w-3 h-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Amount */}
+                            <td className="px-3 py-3 font-bold text-slate-900">
+                              PKR {item.amount.toLocaleString()}
+                            </td>
+
+                            {/* Payment Terms */}
+                            <td className="px-3 py-3">
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 block w-fit">
+                                {item.paymentTerms}
+                              </span>
+                              {item.advancePercentage > 0 && (
+                                <div className="text-[10px] text-slate-500 mt-1">
+                                  Adv: PKR {item.advanceAmount.toLocaleString()} | Comp: PKR {item.completionAmount.toLocaleString()}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Payment Stage */}
+                            <td className="px-4 py-3">
+                              {isAdvanceDue && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <Clock className="w-3 h-3 text-amber-700" />
+                                  Advance Due: PKR {item.advanceAmount.toLocaleString()}
+                                </span>
+                              )}
+                              {isCompletionDue && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  <CheckCircle2 className="w-3 h-3 text-blue-700" />
+                                  Final Due: PKR {item.completionAmount.toLocaleString()}
+                                </span>
+                              )}
+                              {isFullyPaid && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3 h-3 text-emerald-700" />
+                                  Fully Settled
+                                </span>
+                              )}
+                              {isAdvancePaid && !isCompletionDue && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                  <Clock className="w-3 h-3 text-teal-600" />
+                                  Adv Paid • Awaiting Post
+                                </span>
+                              )}
+                              {!item.isApproved && (
+                                <span className="text-[11px] text-slate-400 italic">
+                                  Awaiting Approval
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Content Deliverable Status */}
+                            <td className="px-3 py-3">
+                              {item.deliverablesReceived ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  Received
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-semibold">
+                                  Pending Post
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Executor */}
+                            <td className="px-3 py-3 text-slate-600 text-xs">
+                              {item.assignedTo}
+                            </td>
+
+                            {/* Action */}
+                            <td className="px-4 py-3 text-right">
+                              {isAdvanceDue && (
+                                <button
+                                  onClick={() => {
+                                    setPaymentProofRef('');
+                                    setPaymentProofNotes('');
+                                    setPaymentModal({ open: true, item, action: 'MARK_ADVANCE_PAID' });
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm transition-all"
+                                >
+                                  Mark Advance Paid
+                                </button>
+                              )}
+                              {isCompletionDue && (
+                                <button
+                                  onClick={() => {
+                                    setPaymentProofRef('');
+                                    setPaymentProofNotes('');
+                                    setPaymentModal({ open: true, item, action: 'MARK_FULLY_PAID' });
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all"
+                                >
+                                  Mark Final Paid
+                                </button>
+                              )}
+                              {isFullyPaid && (
+                                <div className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Paid</span>
+                                  {item.paymentProofUrl && (
+                                    <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                      ({item.paymentProofUrl})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -599,6 +1028,79 @@ function OwnerPageContent() {
                   : actionApproval.action === 'REJECT'
                   ? 'Confirm Rejection'
                   : 'Send Note to Executor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Payment & Optional Proof Modal */}
+      {paymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 animate-in fade-in zoom-in-95">
+            <h3 className="text-base font-serif font-bold text-slate-900 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-600" />
+              {paymentModal.action === 'MARK_ADVANCE_PAID' ? 'Confirm Advance Payment Sent' : 'Confirm Final Payment Sent'}
+            </h3>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div><strong>Creator:</strong> {paymentModal.item.name} ({paymentModal.item.igHandle})</div>
+              <div><strong>Bank:</strong> {paymentModal.item.bankName} - {paymentModal.item.accountTitle}</div>
+              <div><strong>Account #:</strong> <span className="font-mono">{paymentModal.item.accountNumber}</span></div>
+              <div>
+                <strong>Amount Payable:</strong>{' '}
+                <span className="font-bold text-emerald-700 text-sm">
+                  PKR{' '}
+                  {(paymentModal.action === 'MARK_ADVANCE_PAID'
+                    ? paymentModal.item.advanceAmount
+                    : paymentModal.item.completionAmount
+                  ).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Transaction Reference / Slip Note (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Meezan Trx #928374 or link to slip"
+                value={paymentProofRef}
+                onChange={(e) => setPaymentProofRef(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Optional: You can paste a transaction ID, banking screenshot link, or leave blank.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Payment Note (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Disbursed via mobile banking"
+                value={paymentProofNotes}
+                onChange={(e) => setPaymentProofNotes(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setPaymentModal(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProcessPayment}
+                disabled={paymentUpdating}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm disabled:opacity-50 transition-colors"
+              >
+                {paymentUpdating ? 'Updating...' : 'Confirm Payment Sent'}
               </button>
             </div>
           </div>

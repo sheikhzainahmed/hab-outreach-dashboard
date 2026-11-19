@@ -20,6 +20,8 @@ import {
   Save,
   AlertCircle,
   RefreshCw,
+  X,
+  Trash2,
 } from 'lucide-react';
 
 interface DispatchItem {
@@ -60,6 +62,7 @@ function OperationsContent() {
   const [dispatches, setDispatches] = useState<DispatchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Search & Filters
   const [search, setSearch] = useState('');
@@ -229,6 +232,30 @@ function OperationsContent() {
       alert('Error updating status');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // Delete Dispatch Row (Remove demo / cancelled order from dispatch queue)
+  const handleDeleteRow = async (dispatchId: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove the dispatch order for "${name}"?\nThis will remove it from Ali's dispatch queue.`)) {
+      return;
+    }
+    setDeletingId(dispatchId);
+    try {
+      const res = await fetch(`/api/dispatch?id=${dispatchId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setDispatches((prev) => prev.filter((d) => d.id !== dispatchId));
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete dispatch order');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while deleting row');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -546,12 +573,13 @@ function OperationsContent() {
                     <th className="px-4 py-3 min-w-[170px]">Courier Tracking #</th>
                     <th className="px-4 py-3 min-w-[150px] text-center">Dispatch Status</th>
                     <th className="px-3 py-3 min-w-[90px]">Locked By</th>
+                    <th className="px-2 py-3 w-10 text-center" title="Delete demo/order row"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {filteredDispatches.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                      <td colSpan={11} className="py-12 text-center text-slate-400">
                         No orders match the selected filter.
                       </td>
                     </tr>
@@ -706,6 +734,18 @@ function OperationsContent() {
                           {/* Locked By / Executor */}
                           <td className="px-3 py-3 text-slate-600 font-semibold text-xs whitespace-nowrap">
                             {item.influencer.assignedTo?.name || 'Amna'}
+                          </td>
+
+                          {/* Delete Row (Small Cross) */}
+                          <td className="px-2 py-3 text-center">
+                            <button
+                              onClick={() => handleDeleteRow(item.id, item.influencer.name)}
+                              disabled={deletingId === item.id}
+                              className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                              title="Delete this demo/order from dispatch queue"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       );

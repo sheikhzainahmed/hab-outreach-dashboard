@@ -15,6 +15,7 @@ import {
   Sparkles,
   Package,
   CheckCircle2,
+  CreditCard,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -129,6 +130,10 @@ function SidebarNav({ role }: SidebarProps) {
               <Link href="/owner?tab=approvals" className={navItemClass('/owner?tab=approvals')}>
                 <CheckSquare className="w-4 h-4 text-rose-600" />
                 <span>Approvals Queue</span>
+              </Link>
+              <Link href="/owner?tab=payments" className={navItemClass('/owner?tab=payments')}>
+                <CreditCard className="w-4 h-4 text-emerald-600" />
+                <span>Payable Sheet & Banks</span>
               </Link>
               <Link href="/owner?tab=performance" className={navItemClass('/owner?tab=performance')}>
                 <BarChart3 className="w-4 h-4 text-purple-600" />

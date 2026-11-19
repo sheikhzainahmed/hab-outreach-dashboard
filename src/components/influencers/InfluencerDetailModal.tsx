@@ -20,6 +20,9 @@ import {
   Check,
   Gift,
   DollarSign,
+  Building,
+  CreditCard,
+  Ban,
 } from 'lucide-react';
 import { STAGE_COLORS, PIPELINE_STAGES } from '@/lib/constants';
 
@@ -313,8 +316,23 @@ export default function InfluencerDetailModal({
                   <p className="text-sm font-bold text-slate-900">
                     {influencer.isPaid ? `PKR ${influencer.amount?.toLocaleString()}` : 'Gifted PR Package'}
                   </p>
+                  {influencer.isPaid && influencer.paymentTerms && (
+                    <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
+                      Terms: {influencer.paymentTerms}
+                    </p>
+                  )}
+                  {influencer.isPaid && influencer.bankName && (
+                    <div className="text-[10px] text-slate-700 bg-white p-1.5 rounded-lg border border-slate-200 mt-1.5 space-y-0.5">
+                      <div className="font-bold flex items-center gap-1">
+                        <Building className="w-3 h-3 text-slate-400" />
+                        <span>{influencer.bankName}</span>
+                      </div>
+                      <div>Title: <span className="font-semibold">{influencer.accountTitle || 'N/A'}</span></div>
+                      <div className="font-mono text-slate-600">Acc: {influencer.accountNumber || 'N/A'}</div>
+                    </div>
+                  )}
                   {influencer.approval && (
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1.5">
                       Approval:{' '}
                       <span className={`font-bold ${
                         influencer.approval.status === 'APPROVED' ? 'text-emerald-600' : influencer.approval.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'
@@ -322,6 +340,12 @@ export default function InfluencerDetailModal({
                         {influencer.approval.status}
                       </span>
                     </p>
+                  )}
+                  {influencer.doNotShip && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-1.5">
+                      <Ban className="w-3 h-3" />
+                      Do Not Ship (Payment Only)
+                    </span>
                   )}
                 </div>
               </div>

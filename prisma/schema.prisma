@@ -47,6 +47,24 @@ model Influencer {
   discountCode    String?
   salesGenerated  Float         @default(0)
 
+  // Payment Terms & Bank Details
+  bankName             String?
+  accountTitle         String?
+  accountNumber        String? // Account Number or IBAN
+  advancePercentage    Int?      @default(0) // e.g. 50
+  advanceAmount        Float?    @default(0)
+  completionPercentage Int?      @default(100) // e.g. 50
+  completionAmount     Float?    @default(0)
+  paymentTerms         String?   // e.g. "50% Advance / 50% on Completion"
+  paymentStatus        String?   @default("PENDING") // PENDING, ADVANCE_PAID, FULLY_PAID
+  advancePaidAt        DateTime?
+  fullyPaidAt          DateTime?
+  paymentProofUrl      String?   // Optional payment proof reference, URL or slip note
+  paymentNotes         String?
+
+  // Shipping Preference (for payment-only / digital collaborations)
+  doNotShip            Boolean   @default(false)
+
   createdById     String
   createdBy       User          @relation("CreatedBy", fields: [createdById], references: [id])
   lastEditedById  String?

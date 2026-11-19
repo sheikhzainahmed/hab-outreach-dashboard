@@ -120,6 +120,13 @@ export async function POST(request: Request) {
       deliverables,
       stage: explicitStage,
       notes,
+      bankName,
+      accountTitle,
+      accountNumber,
+      advancePercentage,
+      completionPercentage,
+      paymentTerms,
+      doNotShip,
     } = body;
 
     // Fast, frictionless validation:
@@ -171,21 +178,32 @@ export async function POST(request: Request) {
       );
     }
 
+    const isDoNotShip = Boolean(doNotShip);
     const finalName = name?.trim() || cleanHandle.replace('@', '');
     const finalShippingName = shippingName?.trim() || finalName;
-    const finalAddress = address?.trim() || 'TBD';
+    const finalAddress = isDoNotShip ? (address?.trim() || 'N/A - Payment Only') : (address?.trim() || 'TBD');
     const finalPhone = phone?.trim() || 'TBD';
-    const finalPackage = prPackage?.trim() || 'Hair Revival Trio';
+    const finalPackage = isDoNotShip ? 'No Package (Payment Only)' : (prPackage?.trim() || 'Hair Revival Trio');
+
+    // Payment calculations
+    const numericAmount = isPaid ? parseFloat(amount) || 0 : 0;
+    const advPct = isPaid ? (parseInt(advancePercentage, 10) || 0) : 0;
+    const compPct = isPaid ? (parseInt(completionPercentage, 10) || (100 - advPct)) : 100;
+    const advAmount = (numericAmount * advPct) / 100;
+    const compAmount = (numericAmount * compPct) / 100;
+    const terms = isPaid
+      ? (paymentTerms?.trim() || (advPct > 0 ? `${advPct}% Advance / ${compPct}% on Completion` : '100% on Completion'))
+      : null;
 
     // Determine initial stage intelligently
-    const numericAmount = isPaid ? parseFloat(amount) || 0 : 0;
     let initialStage = explicitStage || 'Contacted';
 
     if (isPaid) {
       initialStage = 'Awaiting approval';
     } else if (!explicitStage) {
-      // If address and phone are filled and package is agreed, can go to Ready to ship
-      if (address?.trim() && phone?.trim() && address.trim() !== 'TBD') {
+      if (isDoNotShip) {
+        initialStage = 'Package agreed';
+      } else if (address?.trim() && phone?.trim() && address.trim() !== 'TBD') {
         initialStage = 'Ready to ship';
       } else if (prPackage?.trim()) {
         initialStage = 'Package agreed';
@@ -194,8 +212,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Guardrail: Cannot set to Ready to ship if shipping is missing
-    if (initialStage === 'Ready to ship' && (!address?.trim() || address.trim() === 'TBD' || !phone?.trim() || phone.trim() === 'TBD')) {
+    // Guardrail: Cannot set to Ready to ship if shipping is missing or do not ship is selected
+    if (initialStage === 'Ready to ship' && (isDoNotShip || !address?.trim() || address.trim() === 'TBD' || !phone?.trim() || phone.trim() === 'TBD')) {
       initialStage = 'Package agreed';
     }
 
@@ -218,6 +236,21 @@ export async function POST(request: Request) {
         deadline: deadline ? new Date(deadline) : null,
         stage: initialStage,
         notes: notes?.trim() || null,
+
+        // Bank details & payment schedule
+        bankName: bankName?.trim() || null,
+        accountTitle: accountTitle?.trim() || null,
+        accountNumber: accountNumber?.trim() || null,
+        advancePercentage: advPct,
+        advanceAmount: advAmount,
+        completionPercentage: compPct,
+        completionAmount: compAmount,
+        paymentTerms: terms,
+        paymentStatus: 'PENDING',
+
+        // Shipping preference
+        doNotShip: isDoNotShip,
+
         createdById: user.id,
         assignedToId: user.id,
         lastEditedById: user.id,
@@ -237,11 +270,14 @@ export async function POST(request: Request) {
                 },
               ],
         },
-        dispatch: {
-          create: {
-            status: 'Ready',
-          },
-        },
+        // Only create physical dispatch if physical shipment is required!
+        dispatch: isDoNotShip
+          ? undefined
+          : {
+              create: {
+                status: 'Ready',
+              },
+            },
         approval: isPaid
           ? {
               create: {
@@ -283,8 +319,8 @@ export async function POST(request: Request) {
           data: {
             userId: owner.id,
             title: 'New Paid Request',
-            message: `${user.name} requested approval for ${cleanHandle} (PKR ${numericAmount.toLocaleString()})`,
-            link: '/owner',
+            message: `${user.name} requested approval for ${cleanHandle} (PKR ${numericAmount.toLocaleString()}) - ${terms || 'Standard terms'}${isDoNotShip ? ' [No Dispatch]' : ''}`,
+            link: '/owner?tab=approvals',
             type: 'warning',
           },
         });

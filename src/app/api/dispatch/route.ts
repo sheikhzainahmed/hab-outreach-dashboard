@@ -125,3 +125,57 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (user.role !== 'OPERATIONS' && user.role !== 'MANAGER' && user.role !== 'OWNER') {
+      return NextResponse.json(
+        { error: 'Only Operations (Ali), Manager (Zain), or Owner can delete dispatch records' },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Dispatch ID is required' }, { status: 400 });
+    }
+
+    const current = await prisma.dispatch.findUnique({
+      where: { id },
+      include: { influencer: true },
+    });
+
+    if (!current) {
+      return NextResponse.json({ error: 'Dispatch record not found' }, { status: 404 });
+    }
+
+    // Delete the dispatch record
+    await prisma.dispatch.delete({
+      where: { id },
+    });
+
+    // Log the removal
+    await prisma.activityLog.create({
+      data: {
+        entity: 'Dispatch',
+        recordId: id,
+        influencerId: current.influencerId,
+        action: 'EDITED',
+        details: `Dispatch order for ${current.influencer.name} deleted by ${user.name} (${user.role})`,
+        changedById: user.id,
+      },
+    });
+
+    return NextResponse.json({ success: true, deletedId: id });
+  } catch (error: any) {
+    console.error('Dispatch delete error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

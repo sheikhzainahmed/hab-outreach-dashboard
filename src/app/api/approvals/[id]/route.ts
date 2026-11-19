@@ -111,8 +111,8 @@ export async function POST(
       },
     });
 
-    // Ensure dispatch is ready if approved
-    if (isApprove) {
+    // Ensure dispatch is ready if approved, UNLESS it is marked as "Do not ship" (payment only)
+    if (isApprove && !approval.influencer.doNotShip) {
       await prisma.dispatch.upsert({
         where: { influencerId: approval.influencerId },
         update: { status: 'Ready' },

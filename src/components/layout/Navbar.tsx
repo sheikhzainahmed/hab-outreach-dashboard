@@ -110,11 +110,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
   };
 
   const getRoleDisplayName = (user: { name?: string; role: string }) => {
-    if (user.role === 'OWNER') return 'Director';
-    if (user.role === 'COORDINATOR') return 'Coordinator';
-    if (user.role === 'OPERATIONS') return 'Operations';
-    if (user.role === 'MANAGER') return 'Manager';
-    if (user.name === 'Amna') return 'Lead';
+    if (user.role === 'OWNER') return 'DIRECTOR';
     return user.role;
   };
 

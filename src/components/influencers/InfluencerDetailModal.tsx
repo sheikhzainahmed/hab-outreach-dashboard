@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ExternalLink,
@@ -23,6 +23,9 @@ import {
   Building,
   CreditCard,
   Ban,
+  Trash2,
+  ArrowRightLeft,
+  UserCheck,
 } from 'lucide-react';
 import { STAGE_COLORS, PIPELINE_STAGES } from '@/lib/constants';
 
@@ -54,9 +57,28 @@ export default function InfluencerDetailModal({
   const [city, setCity] = useState(influencer?.city || 'Lahore');
   const [notes, setNotes] = useState(influencer?.notes || '');
 
+  // Team re-assignment state
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(influencer?.assignedToId || '');
+
   // Deliverable proof modal state
   const [selectedDeliverable, setSelectedDeliverable] = useState<any>(null);
   const [proofInput, setProofInput] = useState('');
+
+  // Fetch team members when opened
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedAssigneeId(influencer?.assignedToId || '');
+      fetch('/api/users')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.users) {
+            setTeamMembers(data.users.filter((u: any) => u.active !== false));
+          }
+        })
+        .catch((err) => console.error('Failed to load team members:', err));
+    }
+  }, [isOpen, influencer]);
 
   if (!isOpen || !influencer) return null;
 
@@ -110,6 +132,68 @@ export default function InfluencerDetailModal({
     } catch (err: any) {
       setError(err.message);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReassign = async () => {
+    if (!selectedAssigneeId) {
+      setError('Please select a team member to move this creator to.');
+      return;
+    }
+    const targetUser = teamMembers.find((u) => u.id === selectedAssigneeId);
+    if (
+      !confirm(
+        `Move creator "${influencer.name}" (@${influencer.igHandle}) to ${targetUser?.name || 'this team member'}'s profile?`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/influencers/${influencer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToId: selectedAssigneeId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to move creator');
+      setSuccessMsg(`Creator moved to ${targetUser?.name || 'new profile'} successfully!`);
+      setTimeout(() => {
+        setSuccessMsg(null);
+        onClose();
+        onUpdate();
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEntirely = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to COMPLETELY delete "${influencer.name}" (@${influencer.igHandle})?\n\nThis will permanently remove the creator from your dashboard, the master CRM, spend approvals, and dispatch.`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/influencers/${influencer.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete creator');
+      onClose();
+      onUpdate();
+    } catch (err: any) {
+      setError(err.message);
       setLoading(false);
     }
   };
@@ -210,12 +294,26 @@ export default function InfluencerDetailModal({
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={handleDeleteEntirely}
+                  disabled={loading}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Delete creator entirely"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Clean Interactive Stage Progression Bar */}
@@ -461,15 +559,79 @@ export default function InfluencerDetailModal({
                 )}
               </div>
 
-              {/* Ownership Stamp */}
-              <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-500 flex items-center justify-between">
-                <span>
-                  Managed by <strong className="text-slate-800">{influencer.assignedTo?.name || 'Unassigned'}</strong>
-                </span>
-                <span>
-                  Last updated {new Date(influencer.updatedAt).toLocaleDateString()}
-                </span>
+              {/* Profile Assignment & Move Creator */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <UserCheck className="w-4 h-4 text-blue-600" />
+                    <span>Assigned Team Member</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Originally added by {influencer.createdBy?.name || 'Team'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-0.5">
+                  <select
+                    value={selectedAssigneeId}
+                    onChange={(e) => setSelectedAssigneeId(e.target.value)}
+                    disabled={!canEdit || loading}
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+                  >
+                    <option value="">Unassigned</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.role})
+                      </option>
+                    ))}
+                  </select>
+
+                  {canEdit && selectedAssigneeId !== (influencer.assignedToId || '') && (
+                    <button
+                      type="button"
+                      onClick={handleReassign}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      Move Creator
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-slate-500 flex items-center justify-between pt-0.5">
+                  <span>
+                    Current profile: <strong className="text-slate-800">{influencer.assignedTo?.name || 'Unassigned'}</strong>
+                  </span>
+                  <span>
+                    Last updated {new Date(influencer.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
+
+              {/* Danger Zone: Delete Creator Entirely */}
+              {canEdit && (
+                <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      Delete Creator Entirely
+                    </span>
+                    <p className="text-[11px] text-rose-800/80 mt-0.5">
+                      Completely removes this creator from your dashboard, dispatch, spend approvals, and all CRM records.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDeleteEntirely}
+                    disabled={loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Creator
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

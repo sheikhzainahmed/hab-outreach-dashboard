@@ -53,7 +53,7 @@ export async function PUT(
     const { id } = await params;
     const current = await prisma.influencer.findUnique({
       where: { id },
-      include: { approval: true, dispatch: true },
+      include: { approval: true, dispatch: true, assignedTo: true },
     });
 
     if (!current) {
@@ -171,15 +171,38 @@ export async function PUT(
         deliverables: true,
         approval: true,
         dispatch: true,
+        assignedTo: { select: { id: true, name: true, role: true } },
       },
     });
 
+    // Check if creator was reassigned to another person
+    let reassignedLog: string | null = null;
+    if (assignedToId !== undefined && assignedToId !== current.assignedToId) {
+      const prevName = current.assignedTo?.name || 'Unassigned';
+      const newName = updated.assignedTo?.name || 'Unassigned';
+      reassignedLog = `Moved creator profile from ${prevName} to ${newName} by ${user.name}`;
+
+      // Send notification to newly assigned executor
+      if (updated.assignedToId && updated.assignedToId !== user.id) {
+        await prisma.notification.create({
+          data: {
+            userId: updated.assignedToId,
+            title: 'Creator Moved to Your Profile',
+            message: `${user.name} moved creator ${current.name} (${current.igHandle}) to your workspace.`,
+            link: '/executor',
+            type: 'info',
+          },
+        });
+      }
+    }
+
     // Log Activity
-    const action = stage && stage !== current.stage ? 'STAGE_CHANGED' : 'EDITED';
-    const details =
-      stage && stage !== current.stage
-        ? `Stage changed from "${current.stage}" to "${stage}" by ${user.name}`
-        : `Record updated by ${user.name}`;
+    const action = reassignedLog ? 'EDITED' : stage && stage !== current.stage ? 'STAGE_CHANGED' : 'EDITED';
+    const details = reassignedLog
+      ? reassignedLog
+      : stage && stage !== current.stage
+      ? `Stage changed from "${current.stage}" to "${stage}" by ${user.name}`
+      : `Record updated by ${user.name}`;
 
     await prisma.activityLog.create({
       data: {
@@ -209,18 +232,34 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (user.role === 'EXECUTOR' || user.role === 'COORDINATOR') {
+    const { id } = await params;
+    const current = await prisma.influencer.findUnique({
+      where: { id },
+      include: { assignedTo: true },
+    });
+
+    if (!current) {
+      return NextResponse.json({ error: 'Influencer not found' }, { status: 404 });
+    }
+
+    // Role check: Executors/Coordinators can delete creators assigned to them or unassigned,
+    // while Managers and Directors can delete any creator.
+    const isOwnerOrManager = user.role === 'OWNER' || user.role === 'MANAGER';
+    const isAssigned = current.assignedToId === user.id || current.createdById === user.id || !current.assignedToId;
+
+    if (!isOwnerOrManager && !isAssigned) {
       return NextResponse.json(
-        { error: 'Executors cannot delete records. Please contact Zain or Humza.' },
+        { error: 'You can only delete creators that are assigned to your profile.' },
         { status: 403 }
       );
     }
 
-    const { id } = await params;
+    // Delete creator (Prisma cascades delete to Deliverable, Approval, Dispatch, ActivityLog)
     await prisma.influencer.delete({ where: { id } });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedId: id, name: current.name });
   } catch (error: any) {
+    console.error('Error deleting influencer:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

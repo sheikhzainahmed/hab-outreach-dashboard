@@ -19,6 +19,9 @@ import {
   Check,
   ChevronDown,
   ArrowRight,
+  Trash2,
+  UserCheck,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
 
@@ -143,6 +146,55 @@ function ExecutorContent() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDeleteInline = async (inf: any) => {
+    if (
+      !confirm(
+        `Are you sure you want to COMPLETELY delete "${inf.name}" (@${inf.igHandle.replace('@', '')})?\n\nThis will permanently remove the creator from your dashboard, the master CRM, spend approvals, and dispatch.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/influencers/${inf.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setInfluencers((prev) => prev.filter((i) => i.id !== inf.id));
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete creator');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while deleting creator');
+    }
+  };
+
+  const handleInlineReassign = async (infId: string, newAssigneeId: string) => {
+    const targetUser = allUsers.find((u) => u.id === newAssigneeId);
+    if (!confirm(`Move this creator to ${targetUser?.name || 'Unassigned'}'s profile?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/influencers/${infId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToId: newAssigneeId || null }),
+      });
+      if (res.ok) {
+        loadInfluencers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to move creator');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error while reassigning creator');
     }
   };
 
@@ -325,10 +377,11 @@ function ExecutorContent() {
                     <tr>
                       <th className="px-4 py-3">Creator</th>
                       <th className="px-4 py-3">Stage (Click to change)</th>
+                      <th className="px-4 py-3">Assigned Profile</th>
                       <th className="px-4 py-3">PR Package</th>
                       <th className="px-4 py-3">Shipping Address</th>
                       <th className="px-4 py-3">Deliverables</th>
-                      <th className="px-4 py-3 text-right">View</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -336,6 +389,11 @@ function ExecutorContent() {
                       const color = STAGE_COLORS[inf.stage] || STAGE_COLORS['Contacted'];
                       const completedCount = inf.deliverables?.filter((d: any) => d.received).length || 0;
                       const totalDelivs = inf.deliverables?.length || 0;
+                      const canEditInf =
+                        (currentUser?.role !== 'EXECUTOR' && currentUser?.role !== 'COORDINATOR') ||
+                        inf.assignedToId === currentUser?.id ||
+                        inf.createdById === currentUser?.id ||
+                        !inf.assignedToId;
 
                       return (
                         <tr key={inf.id} className="hover:bg-slate-50/70 transition-colors">
@@ -350,13 +408,36 @@ function ExecutorContent() {
                           <td className="px-4 py-3">
                             <select
                               value={inf.stage}
+                              disabled={!canEditInf}
                               onChange={(e) => handleInlineStageChange(inf.id, e.target.value)}
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-sm cursor-pointer ${color.bg} ${color.text} ${color.border}`}
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs cursor-pointer ${color.bg} ${color.text} ${color.border}`}
                             >
                               {PIPELINE_STAGES.map((s) => (
                                 <option key={s} value={s}>{s}</option>
                               ))}
                             </select>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {canEditInf ? (
+                              <select
+                                value={inf.assignedToId || ''}
+                                onChange={(e) => handleInlineReassign(inf.id, e.target.value)}
+                                className="text-[11px] font-bold bg-white text-slate-800 border border-slate-200 rounded-lg px-2 py-1 shadow-2xs focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                title="Move creator to another person's profile"
+                              >
+                                <option value="">Unassigned</option>
+                                {allUsers.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                {inf.assignedTo?.name || 'Unassigned'}
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 max-w-xs truncate text-slate-800">
@@ -382,12 +463,23 @@ function ExecutorContent() {
                           </td>
 
                           <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => setSelectedInfluencer(inf)}
-                              className="text-rose-600 font-bold hover:underline"
-                            >
-                              Edit &rarr;
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setSelectedInfluencer(inf)}
+                                className="text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition-colors"
+                              >
+                                View &rarr;
+                              </button>
+                              {canEditInf && (
+                                <button
+                                  onClick={() => handleDeleteInline(inf)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                  title="Delete creator entirely"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

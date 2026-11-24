@@ -83,7 +83,11 @@ export default function InfluencerDetailModal({
   if (!isOpen || !influencer) return null;
 
   const stageColor = STAGE_COLORS[influencer.stage] || STAGE_COLORS['Contacted'];
-  const canEdit = (currentUser.role !== 'EXECUTOR' && currentUser.role !== 'COORDINATOR') || influencer.assignedToId === currentUser.id;
+  const canEdit = Boolean(
+    currentUser &&
+    ((currentUser.role !== 'EXECUTOR' && currentUser.role !== 'COORDINATOR') ||
+      influencer.assignedToId === currentUser.id)
+  );
 
   const handleStageSelect = async (newStage: string) => {
     if (newStage === influencer.stage) return;

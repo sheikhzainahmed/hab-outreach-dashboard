@@ -214,7 +214,19 @@ function OwnerPageContent() {
     }
   };
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center text-white shadow-md animate-pulse">
+          <Sparkles className="w-5 h-5" />
+        </div>
+        <p className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+          Loading Executive Overview...
+        </p>
+      </div>
+    );
+  }
 
   const summary = analytics?.summary || {};
   const rawExecList = analytics?.executorPerformance || [];

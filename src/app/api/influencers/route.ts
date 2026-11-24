@@ -44,11 +44,11 @@ export async function GET(request: Request) {
 
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { igHandle: { contains: search } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { igHandle: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
-        { address: { contains: search } },
-        { city: { contains: search } },
+        { address: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
       ];
     }
 

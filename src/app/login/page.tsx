@@ -29,12 +29,10 @@ export default function LoginPage() {
         throw new Error(data.error || 'Failed to sign in');
       }
 
-      if (data.user.role === 'OWNER') router.push('/owner');
-      else if (data.user.role === 'MANAGER') router.push('/manager');
-      else if (data.user.role === 'OPERATIONS') router.push('/operations');
-      else router.push('/executor');
-
-      router.refresh();
+      if (data.user.role === 'OWNER') window.location.href = '/owner';
+      else if (data.user.role === 'MANAGER') window.location.href = '/manager';
+      else if (data.user.role === 'OPERATIONS') window.location.href = '/operations';
+      else window.location.href = '/executor';
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -52,6 +50,7 @@ export default function LoginPage() {
     { name: 'Minahil', role: 'Executor', email: 'minahil@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },
     { name: 'Sophia', role: 'Executor', email: 'sophia@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },
     { name: 'Maryam', role: 'Executor', email: 'maryam@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },
+    { name: 'Maimoona', role: 'Executor', email: 'maimoona@hiraalibeauty.com', color: 'from-rose-500 to-pink-600' },
   ];
 
   return (

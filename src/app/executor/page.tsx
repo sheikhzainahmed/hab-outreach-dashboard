@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import KanbanBoard from '@/components/pipeline/KanbanBoard';
@@ -26,6 +27,13 @@ import {
 import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
 
 function ExecutorContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const allTeamParam = searchParams.get('allTeam') === 'true';
+  const viewParam = searchParams.get('view');
+  const needsActionParam = searchParams.get('needsAction') === 'true' || viewParam === 'needs-action';
+  const executorParam = searchParams.get('executorId') || 'all';
+
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [influencers, setInfluencers] = useState<any[]>([]);
@@ -33,8 +41,9 @@ function ExecutorContent() {
 
   // Filters & Views
   const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
-  const [allTeam, setAllTeam] = useState(false);
-  const [needsActionOnly, setNeedsActionOnly] = useState(false);
+  const [allTeam, setAllTeam] = useState(allTeamParam);
+  const [needsActionOnly, setNeedsActionOnly] = useState(needsActionParam);
+  const [executorFilter, setExecutorFilter] = useState(executorParam);
   const [search, setSearch] = useState('');
   const [selectedStage, setSelectedStage] = useState('all');
 
@@ -47,6 +56,15 @@ function ExecutorContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInfluencer, setSelectedInfluencer] = useState<any>(null);
 
+  // Sync state with URL search parameters
+  useEffect(() => {
+    const isTeam = searchParams.get('allTeam') === 'true';
+    const isNeedsAction = searchParams.get('needsAction') === 'true' || searchParams.get('view') === 'needs-action';
+    setAllTeam(isTeam);
+    setNeedsActionOnly(isNeedsAction);
+    setExecutorFilter(searchParams.get('executorId') || 'all');
+  }, [searchParams]);
+
   useEffect(() => {
     fetchSession();
   }, []);
@@ -55,7 +73,7 @@ function ExecutorContent() {
     if (currentUser) {
       loadInfluencers();
     }
-  }, [currentUser, allTeam, needsActionOnly, selectedStage, search]);
+  }, [currentUser, allTeam, needsActionOnly, executorFilter, selectedStage, search]);
 
   const fetchSession = async () => {
     try {
@@ -77,6 +95,7 @@ function ExecutorContent() {
     try {
       const params = new URLSearchParams();
       if (allTeam) params.append('allTeam', 'true');
+      if (allTeam && executorFilter !== 'all') params.append('executorId', executorFilter);
       if (needsActionOnly) params.append('needsAction', 'true');
       if (selectedStage !== 'all') params.append('stage', selectedStage);
       if (search.trim()) params.append('search', search.trim());
@@ -198,7 +217,19 @@ function ExecutorContent() {
     }
   };
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 to-amber-500 flex items-center justify-center text-white shadow-md animate-pulse">
+          <Sparkles className="w-5 h-5" />
+        </div>
+        <p className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-500" />
+          Loading your workspace...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -230,7 +261,11 @@ function ExecutorContent() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setAllTeam(!allTeam)}
+                onClick={() => {
+                  const next = !allTeam;
+                  setAllTeam(next);
+                  router.push(next ? '/executor?allTeam=true' : '/executor');
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
                   allTeam
                     ? 'bg-blue-600 text-white border-blue-600'
@@ -242,7 +277,11 @@ function ExecutorContent() {
               </button>
 
               <button
-                onClick={() => setNeedsActionOnly(!needsActionOnly)}
+                onClick={() => {
+                  const next = !needsActionOnly;
+                  setNeedsActionOnly(next);
+                  router.push(next ? '/executor?view=needs-action' : '/executor');
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
                   needsActionOnly
                     ? 'bg-amber-500 text-white border-amber-500'
@@ -329,6 +368,26 @@ function ExecutorContent() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+
+              {allTeam && (
+                <select
+                  value={executorFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setExecutorFilter(val);
+                    if (val === 'all') router.push('/executor?allTeam=true');
+                    else router.push(`/executor?allTeam=true&executorId=${val}`);
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50/70 font-semibold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Team Members</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -354,6 +413,40 @@ function ExecutorContent() {
               </div>
             </div>
           </div>
+
+          {/* Helpful Empty State Banner for Executors with 0 Assigned Records */}
+          {!loading && !allTeam && influencers.length === 0 && !search && (
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+              <div className="flex items-center gap-2.5 text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <p className="font-bold">No creators in your personal queue right now.</p>
+                  <p className="text-[11px] text-amber-800">
+                    Switch to &quot;All Team&quot; view to browse all team creators, or click &quot;+ New Influencer&quot; to add one.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setAllTeam(true);
+                    router.push('/executor?allTeam=true');
+                  }}
+                  className="px-3 py-1.5 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 transition-all text-xs"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  View All Team
+                </button>
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1.5 transition-all text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Creator
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Main Display: Board or Table */}
           {loading ? (

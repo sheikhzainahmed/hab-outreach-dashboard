@@ -101,7 +101,7 @@ function OperationsContent() {
         setCurrentUser(data.user);
         setAllUsers(data.allUsers || []);
       } else {
-        router.push('/login');
+        window.location.href = '/login';
       }
     } catch (e) {
       console.error(e);
@@ -155,7 +155,7 @@ function OperationsContent() {
   const duplicatePhoneSet = useMemo(() => {
     const counts: Record<string, number> = {};
     dispatches.forEach((d) => {
-      const p = (d.influencer.phone || '').replace(/\D/g, '');
+      const p = (d.influencer?.phone || '').replace(/\D/g, '');
       if (p.length >= 7) {
         counts[p] = (counts[p] || 0) + 1;
       }
@@ -180,14 +180,14 @@ function OperationsContent() {
       // Search query
       if (search.trim()) {
         const q = search.toLowerCase();
-        const name = (item.influencer.name || '').toLowerCase();
-        const handle = (item.influencer.igHandle || '').toLowerCase();
-        const phone = (item.influencer.phone || '').toLowerCase();
-        const city = (item.influencer.city || '').toLowerCase();
-        const addr = (item.influencer.address || '').toLowerCase();
-        const pro = (item.influencer.products || item.influencer.prPackage || '').toLowerCase();
+        const name = (item.influencer?.name || '').toLowerCase();
+        const handle = (item.influencer?.igHandle || '').toLowerCase();
+        const phone = (item.influencer?.phone || '').toLowerCase();
+        const city = (item.influencer?.city || '').toLowerCase();
+        const addr = (item.influencer?.address || '').toLowerCase();
+        const pro = (item.influencer?.products || item.influencer?.prPackage || '').toLowerCase();
         const trk = (item.trackingNumber || '').toLowerCase();
-        const exec = (item.influencer.assignedTo?.name || '').toLowerCase();
+        const exec = (item.influencer?.assignedTo?.name || '').toLowerCase();
 
         return (
           name.includes(q) ||
@@ -350,7 +350,19 @@ function OperationsContent() {
     }
   };
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-700 to-emerald-800 flex items-center justify-center text-white shadow-md animate-pulse">
+          <Package className="w-5 h-5" />
+        </div>
+        <p className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-600" />
+          Loading Operations Workspace...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

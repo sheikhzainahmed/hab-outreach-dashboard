@@ -66,12 +66,11 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
       if (res.ok) {
         const data = await res.json();
         setShowUserMenu(false);
-        // Redirect to their default view
-        if (data.user.role === 'OWNER') router.push('/owner');
-        else if (data.user.role === 'MANAGER') router.push('/manager');
-        else if (data.user.role === 'OPERATIONS') router.push('/operations');
-        else router.push('/executor');
-        router.refresh();
+        // Force clean hard navigation so all cookies, state, and permissions refresh properly
+        if (data.user.role === 'OWNER') window.location.href = '/owner';
+        else if (data.user.role === 'MANAGER') window.location.href = '/manager';
+        else if (data.user.role === 'OPERATIONS') window.location.href = '/operations';
+        else window.location.href = '/executor';
       }
     } catch (e) {
       console.error(e);
@@ -80,8 +79,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
+    window.location.href = '/login';
   };
 
   const markAllRead = async () => {
@@ -94,7 +92,7 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
     fetchNotifications();
   };
 
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'OWNER':
         return 'bg-amber-100 text-amber-800 border-amber-300';
@@ -109,9 +107,10 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
     }
   };
 
-  const getRoleDisplayName = (user: { name?: string; role: string }) => {
+  const getRoleDisplayName = (user?: { name?: string; role?: string } | null) => {
+    if (!user) return 'User';
     if (user.role === 'OWNER') return 'DIRECTOR';
-    return user.role;
+    return user.role || 'User';
   };
 
   return (
@@ -143,10 +142,10 @@ export default function Navbar({ currentUser, allUsers }: NavbarProps) {
               title="Click to switch role / user"
             >
               <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-700">
-                {currentUser.name.charAt(0)}
+                {currentUser?.name?.charAt(0) || 'U'}
               </div>
-              <span className="font-semibold text-slate-900">{currentUser.name}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${getRoleBadge(currentUser.role)}`}>
+              <span className="font-semibold text-slate-900">{currentUser?.name || 'User'}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${getRoleBadge(currentUser?.role)}`}>
                 {getRoleDisplayName(currentUser)}
               </span>
               <ChevronDown className="w-4 h-4 text-slate-400" />

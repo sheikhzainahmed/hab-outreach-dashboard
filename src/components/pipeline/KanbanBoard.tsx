@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   MapPin,
@@ -10,6 +10,9 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldAlert,
+  Tag,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
 
@@ -26,7 +29,19 @@ export default function KanbanBoard({
   onSelectInfluencer,
   onStageChange,
 }: KanbanBoardProps) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const now = new Date();
+
+  const handleCopyCode = async (e: React.MouseEvent, infId: string, code: string) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedId(infId);
+      setTimeout(() => setCopiedId(null), 1800);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-6 pt-2 select-none min-h-[600px]">
@@ -92,6 +107,29 @@ export default function KanbanBoard({
                           {inf.products || inf.prPackage}
                         </span>
                       </div>
+
+                      {/* Custom Promo Code Badge (Convey to Influencer) */}
+                      {inf.discountCode && (
+                        <div className="flex items-center justify-between gap-1.5 mb-2 px-2 py-1 rounded-lg bg-violet-50 border border-violet-200 text-[10px]">
+                          <div className="flex items-center gap-1 text-violet-900 font-bold truncate">
+                            <Tag className="w-3 h-3 text-violet-600 shrink-0" />
+                            <span className="text-violet-600 font-semibold">Code:</span>
+                            <span className="font-mono tracking-wide truncate">{inf.discountCode}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyCode(e, inf.id, inf.discountCode)}
+                            className="p-0.5 rounded text-violet-700 hover:bg-violet-100 transition-colors shrink-0"
+                            title="Copy promo code to share with creator"
+                          >
+                            {copiedId === inf.id ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      )}
 
                       {/* Commercial Tag */}
                       {inf.isPaid && (

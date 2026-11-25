@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import InfluencerDetailModal from '@/components/influencers/InfluencerDetailModal';
+import PromoCodesSection from '@/components/codes/PromoCodesSection';
 import {
   Truck,
   Download,
@@ -28,6 +29,7 @@ import {
   Activity,
   Layers,
   Database,
+  Tag,
 } from 'lucide-react';
 
 function ManagerPageContent() {
@@ -35,8 +37,14 @@ function ManagerPageContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') || 'dispatch';
 
-  const [activeTab, setActiveTab] = useState<'dispatch' | 'performance' | 'health'>(
-    tabParam === 'performance' ? 'performance' : tabParam === 'health' ? 'health' : 'dispatch'
+  const [activeTab, setActiveTab] = useState<'dispatch' | 'codes' | 'performance' | 'health'>(
+    tabParam === 'performance'
+      ? 'performance'
+      : tabParam === 'health'
+      ? 'health'
+      : tabParam === 'codes'
+      ? 'codes'
+      : 'dispatch'
   );
 
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -81,7 +89,7 @@ function ManagerPageContent() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (tabParam === 'performance' || tabParam === 'health' || tabParam === 'dispatch') {
+    if (tabParam === 'performance' || tabParam === 'health' || tabParam === 'dispatch' || tabParam === 'codes') {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -97,7 +105,7 @@ function ManagerPageContent() {
     }
   }, [currentUser, statusFilter]);
 
-  const handleTabChange = (tab: 'dispatch' | 'performance' | 'health') => {
+  const handleTabChange = (tab: 'dispatch' | 'codes' | 'performance' | 'health') => {
     setActiveTab(tab);
     router.push(`/manager?tab=${tab}`);
   };
@@ -338,10 +346,10 @@ function ManagerPageContent() {
           )}
 
           {/* Main Top Navigation Tabs */}
-          <div className="flex items-center border-b border-slate-200 gap-1 sm:gap-2">
+          <div className="flex items-center border-b border-slate-200 gap-1 sm:gap-2 overflow-x-auto">
             <button
               onClick={() => handleTabChange('dispatch')}
-              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 ${
+              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'dispatch'
                   ? 'text-purple-700 border-b-2 border-purple-600'
                   : 'text-slate-500 hover:text-slate-800'
@@ -357,8 +365,38 @@ function ManagerPageContent() {
             </button>
 
             <button
+              onClick={() => handleTabChange('codes')}
+              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'codes'
+                  ? 'text-violet-700 border-b-2 border-violet-600'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Tag className="w-4 h-4 text-violet-600" />
+              <span>Promo Codes &amp; Shopify</span>
+              {allInfluencers.filter(
+                (i) =>
+                  !i.codeQueueCleared &&
+                  ['Package agreed', 'Ready to ship', 'Shipped', 'Content pending'].includes(i.stage) &&
+                  (!i.discountCode || !i.discountCode.trim())
+              ).length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-800">
+                  {
+                    allInfluencers.filter(
+                      (i) =>
+                        !i.codeQueueCleared &&
+                        ['Package agreed', 'Ready to ship', 'Shipped', 'Content pending'].includes(i.stage) &&
+                        (!i.discountCode || !i.discountCode.trim())
+                    ).length
+                  }{' '}
+                  new
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => handleTabChange('performance')}
-              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 ${
+              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'performance'
                   ? 'text-purple-700 border-b-2 border-purple-600'
                   : 'text-slate-500 hover:text-slate-800'
@@ -375,7 +413,7 @@ function ManagerPageContent() {
 
             <button
               onClick={() => handleTabChange('health')}
-              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 ${
+              className={`pb-3 px-3 sm:px-4 text-xs font-bold transition-all relative flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'health'
                   ? 'text-purple-700 border-b-2 border-purple-600'
                   : 'text-slate-500 hover:text-slate-800'
@@ -390,6 +428,16 @@ function ManagerPageContent() {
               )}
             </button>
           </div>
+
+          {/* TAB: PROMO CODES & SHOPIFY BATCH + ARCHIVE */}
+          {activeTab === 'codes' && (
+            <PromoCodesSection
+              allUsers={allUsers}
+              defaultSubTab="queue"
+              onSelectInfluencer={(inf) => setSelectedInfluencer(inf)}
+              onCodesUpdated={() => loadHealthAndAnalytics()}
+            />
+          )}
 
           {/* TAB 1: DISPATCH QUEUE */}
           {activeTab === 'dispatch' && (

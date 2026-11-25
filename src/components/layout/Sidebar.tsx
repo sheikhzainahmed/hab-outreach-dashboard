@@ -16,6 +16,7 @@ import {
   Package,
   CheckCircle2,
   CreditCard,
+  Tag,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -139,6 +140,10 @@ function SidebarNav({ role }: SidebarProps) {
                 <BarChart3 className="w-4 h-4 text-purple-600" />
                 <span>Executor Performance</span>
               </Link>
+              <Link href="/codes" className={navItemClass('/codes')}>
+                <Tag className="w-4 h-4 text-violet-600" />
+                <span>Promo Codes Archive</span>
+              </Link>
             </>
           )}
 
@@ -151,6 +156,10 @@ function SidebarNav({ role }: SidebarProps) {
               <Link href="/manager?tab=dispatch&status=Ready" className={navItemClass('/manager?tab=dispatch&status=Ready')}>
                 <Package className="w-4 h-4 text-amber-600" />
                 <span>To Be Dispatched (4)</span>
+              </Link>
+              <Link href="/manager?tab=codes" className={navItemClass('/manager?tab=codes')}>
+                <Tag className="w-4 h-4 text-violet-600" />
+                <span>Promo Codes</span>
               </Link>
               <Link href="/manager?tab=performance" className={navItemClass('/manager?tab=performance')}>
                 <BarChart3 className="w-4 h-4 text-rose-600" />

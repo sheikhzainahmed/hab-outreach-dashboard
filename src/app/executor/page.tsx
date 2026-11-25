@@ -23,6 +23,8 @@ import {
   Trash2,
   UserCheck,
   ArrowRightLeft,
+  Tag,
+  Copy,
 } from 'lucide-react';
 import { PIPELINE_STAGES, STAGE_COLORS } from '@/lib/constants';
 
@@ -52,9 +54,10 @@ function ExecutorContent() {
   const [quickAdding, setQuickAdding] = useState(false);
   const [quickSuccess, setQuickSuccess] = useState(false);
 
-  // Modals
+  // Modals & Copy feedback
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInfluencer, setSelectedInfluencer] = useState<any>(null);
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   // Sync state with URL search parameters
   useEffect(() => {
@@ -472,6 +475,7 @@ function ExecutorContent() {
                       <th className="px-4 py-3">Stage (Click to change)</th>
                       <th className="px-4 py-3">Assigned Profile</th>
                       <th className="px-4 py-3">PR Package</th>
+                      <th className="px-4 py-3">Promo Code</th>
                       <th className="px-4 py-3">Shipping Address</th>
                       <th className="px-4 py-3">Deliverables</th>
                       <th className="px-4 py-3 text-right">Actions</th>
@@ -535,6 +539,35 @@ function ExecutorContent() {
 
                           <td className="px-4 py-3 max-w-xs truncate text-slate-800">
                             {inf.products || inf.prPackage}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {inf.discountCode ? (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-200">
+                                <Tag className="w-3 h-3 text-violet-600 shrink-0" />
+                                <span className="font-mono font-bold text-[11px] text-violet-900">
+                                  {inf.discountCode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(inf.discountCode);
+                                    setCopiedCodeId(inf.id);
+                                    setTimeout(() => setCopiedCodeId(null), 1800);
+                                  }}
+                                  className="text-violet-600 hover:text-violet-800"
+                                  title="Copy promo code"
+                                >
+                                  {copiedCodeId === inf.id ? (
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">—</span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600 max-w-xs truncate">

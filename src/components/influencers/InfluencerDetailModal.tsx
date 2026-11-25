@@ -26,6 +26,8 @@ import {
   Trash2,
   ArrowRightLeft,
   UserCheck,
+  Tag,
+  Copy,
 } from 'lucide-react';
 import { STAGE_COLORS, PIPELINE_STAGES } from '@/lib/constants';
 
@@ -61,6 +63,13 @@ export default function InfluencerDetailModal({
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(influencer?.assignedToId || '');
 
+  // Custom Promo Code state
+  const [isEditingCode, setIsEditingCode] = useState(false);
+  const [promoCodeInput, setPromoCodeInput] = useState(influencer?.discountCode || '');
+  const [displayedPromoCode, setDisplayedPromoCode] = useState(influencer?.discountCode || '');
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedDm, setCopiedDm] = useState(false);
+
   // Deliverable proof modal state
   const [selectedDeliverable, setSelectedDeliverable] = useState<any>(null);
   const [proofInput, setProofInput] = useState('');
@@ -69,6 +78,9 @@ export default function InfluencerDetailModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedAssigneeId(influencer?.assignedToId || '');
+      setPromoCodeInput(influencer?.discountCode || '');
+      setDisplayedPromoCode(influencer?.discountCode || '');
+      setIsEditingCode(false);
       fetch('/api/users')
         .then((res) => res.json())
         .then((data) => {
@@ -103,6 +115,33 @@ export default function InfluencerDetailModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update stage');
       setSuccessMsg(`Stage updated to "${newStage}"`);
+      setTimeout(() => setSuccessMsg(null), 2500);
+      onUpdate();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePromoCode = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/promo-codes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          influencerId: influencer.id,
+          discountCode: promoCodeInput.trim().toUpperCase(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save promo code');
+      const finalCode = promoCodeInput.trim().toUpperCase();
+      setDisplayedPromoCode(finalCode);
+      setIsEditingCode(false);
+      setSuccessMsg(finalCode ? 'Custom promo code updated and synced to executor!' : 'Promo code removed.');
       setTimeout(() => setSuccessMsg(null), 2500);
       onUpdate();
     } catch (err: any) {
@@ -474,6 +513,95 @@ export default function InfluencerDetailModal({
                   )}
                 </div>
               </div>
+
+              {/* Custom Promo Code Banner (Visible to Executor to Share with Influencer) */}
+              {(displayedPromoCode || currentUser?.role === 'MANAGER' || currentUser?.role === 'OWNER') && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-violet-950">
+                      <Tag className="w-4 h-4 text-violet-600" />
+                      <span>Custom Creator Promo Code</span>
+                    </div>
+                    {(currentUser?.role === 'MANAGER' || currentUser?.role === 'OWNER') && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCode(!isEditingCode)}
+                        className="text-[11px] text-violet-700 hover:text-violet-900 font-bold flex items-center gap-1"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        {isEditingCode ? 'Cancel' : displayedPromoCode ? 'Edit Code' : 'Assign Code'}
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingCode ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. AYESHA10"
+                        value={promoCodeInput}
+                        onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                        className="flex-1 px-3 py-1.5 rounded-xl border border-violet-300 bg-white text-xs font-mono font-bold uppercase text-violet-950 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSavePromoCode}
+                        disabled={loading}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 shadow-sm"
+                      >
+                        {loading ? 'Saving...' : 'Save Code'}
+                      </button>
+                    </div>
+                  ) : displayedPromoCode ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-violet-300 shadow-2xs">
+                          <span className="font-mono text-sm font-extrabold text-violet-900 tracking-wider">
+                            {displayedPromoCode}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-violet-700/80 mt-1">
+                          Share this code with {influencer.name} to promote in their content.
+                          {influencer.codeAssignedAt &&
+                            ` Added ${new Date(influencer.codeAssignedAt).toLocaleDateString()}.`}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(displayedPromoCode);
+                            setCopiedCode(true);
+                            setTimeout(() => setCopiedCode(false), 2000);
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-violet-600 hover:bg-violet-700 text-white shadow-xs flex items-center gap-1 transition-colors"
+                        >
+                          {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedCode ? 'Copied!' : 'Copy Code'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const msg = `Hi ${influencer.name}! Here is your custom Hira Ali Beauty promo code to share with your audience: ${displayedPromoCode}`;
+                            navigator.clipboard.writeText(msg);
+                            setCopiedDm(true);
+                            setTimeout(() => setCopiedDm(false), 2000);
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white hover:bg-violet-100 text-violet-800 border border-violet-200 flex items-center gap-1 transition-colors"
+                        >
+                          {copiedDm ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedDm ? 'DM Copied!' : 'Copy DM'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-violet-800/70 italic">
+                      No promo code assigned yet. Click &quot;Assign Code&quot; above or manage in Manager → Promo Codes.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Shipping Details Box (Editable) */}
               <div className="p-4 rounded-2xl border border-slate-200 space-y-3">

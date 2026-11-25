@@ -44,8 +44,12 @@ model Influencer {
   deadline        DateTime?
   stage           String        @default("Contacted") // Contacted, Replied, Package agreed, Awaiting approval, Ready to ship, Shipped, Content pending, Content received, Removed / on hold
   notes           String?
-  discountCode    String?
-  salesGenerated  Float         @default(0)
+  discountCode         String?
+  salesGenerated       Float         @default(0)
+  codeAssignedAt       DateTime?
+  codeQueueCleared     Boolean       @default(false)
+  codeClearedAt        DateTime?
+  codePerformanceNotes String?
 
   // Payment Terms & Bank Details
   bankName             String?

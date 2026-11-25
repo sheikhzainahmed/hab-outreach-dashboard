@@ -151,7 +151,10 @@ export async function PUT(
         ...(stage !== undefined && { stage }),
         ...(notes !== undefined && { notes: notes?.trim() || null }),
         ...(assignedToId !== undefined && { assignedToId }),
-        ...(discountCode !== undefined && { discountCode: discountCode?.trim() || null }),
+        ...(discountCode !== undefined && {
+          discountCode: discountCode?.trim() ? discountCode.trim().toUpperCase() : null,
+          codeAssignedAt: discountCode?.trim() ? new Date() : null,
+        }),
         ...(salesGenerated !== undefined && { salesGenerated: parseFloat(salesGenerated) || 0 }),
         ...(bankName !== undefined && { bankName: bankName?.trim() || null }),
         ...(accountTitle !== undefined && { accountTitle: accountTitle?.trim() || null }),
@@ -194,6 +197,25 @@ export async function PUT(
           },
         });
       }
+    }
+
+    // Notify executor if promo code was added or changed from detail modal
+    if (
+      discountCode !== undefined &&
+      updated.discountCode &&
+      updated.discountCode !== current.discountCode &&
+      updated.assignedToId &&
+      updated.assignedToId !== user.id
+    ) {
+      await prisma.notification.create({
+        data: {
+          userId: updated.assignedToId,
+          title: `🏷️ Promo Code Ready: ${updated.igHandle}`,
+          message: `${user.name} assigned custom code "${updated.discountCode}" for ${updated.name} (${updated.igHandle}). Share it with the creator!`,
+          link: '/executor',
+          type: 'success',
+        },
+      });
     }
 
     // Log Activity

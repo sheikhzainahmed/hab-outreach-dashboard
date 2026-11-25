@@ -367,7 +367,7 @@ function ExecutorContent() {
                 className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
               >
                 <option value="all">All Stages ({influencers.length})</option>
-                {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied'].includes(s)).map((s) => (
+                {PIPELINE_STAGES.filter((s) => s !== 'Contacted').map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -463,6 +463,7 @@ function ExecutorContent() {
               currentUser={currentUser}
               onSelectInfluencer={(inf) => setSelectedInfluencer(inf)}
               onStageChange={() => loadInfluencers()}
+              isSearching={Boolean(search.trim())}
             />
           ) : (
             /* Clean Table View */
@@ -533,7 +534,7 @@ function ExecutorContent() {
                               className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs cursor-pointer ${color.bg} ${color.text} ${color.border}`}
                             >
                               {PIPELINE_STAGES.filter(
-                                (s) => !['Contacted', 'Replied'].includes(s) || s === inf.stage
+                                (s) => s !== 'Contacted' || s === inf.stage
                               ).map((s) => (
                                 <option key={s} value={s}>{s}</option>
                               ))}

@@ -331,8 +331,9 @@ export default function AddInfluencerModal({
                   onChange={(e) => setStage(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white"
                 >
-                  <option value="Package agreed">1. Package Agreed</option>
-                  <option value="Ready to ship">2. Ready to Ship (Has Address)</option>
+                  <option value="Replied">1. Replied (In Conversation)</option>
+                  <option value="Package agreed">2. Package Agreed</option>
+                  <option value="Ready to ship">3. Ready to Ship (Has Address)</option>
                 </select>
               </div>
 

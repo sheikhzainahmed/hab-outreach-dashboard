@@ -21,6 +21,7 @@ interface KanbanBoardProps {
   currentUser: any;
   onSelectInfluencer: (inf: any) => void;
   onStageChange: (id: string, newStage: string) => void;
+  isSearching?: boolean;
 }
 
 export default function KanbanBoard({
@@ -28,6 +29,7 @@ export default function KanbanBoard({
   currentUser,
   onSelectInfluencer,
   onStageChange,
+  isSearching = false,
 }: KanbanBoardProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const now = new Date();
@@ -43,11 +45,41 @@ export default function KanbanBoard({
     }
   };
 
+  // Base visible stages: "Contacted" (reached out) is left out; "Replied" is kept.
+  // Any legacy "Contacted" records are safely surfaced inside "Replied" so nothing is ever hidden.
+  // "Removed / on hold" is shown dynamically only when matching records exist.
+  const hasRemovedRecords = influencers.some((i) => i.stage === 'Removed / on hold');
+  const baseStages = PIPELINE_STAGES.filter((s) => {
+    if (s === 'Contacted') return false;
+    if (s === 'Removed / on hold') return hasRemovedRecords;
+    return true;
+  });
+
+  const getStageInfluencers = (stage: string) => {
+    if (stage === 'Replied') {
+      return influencers.filter((i) => i.stage === 'Replied' || i.stage === 'Contacted');
+    }
+    return influencers.filter((i) => i.stage === stage);
+  };
+
+  // When actively searching, show only columns with matches so the user never has to scroll past empty boxes
+  const visibleStages = isSearching
+    ? baseStages.filter((stage) => getStageInfluencers(stage).length > 0)
+    : baseStages;
+
+  if (isSearching && visibleStages.length === 0) {
+    return (
+      <div className="py-16 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
+        No creators match your search query.
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-6 pt-2 select-none min-h-[600px]">
-      {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied', 'Removed / on hold'].includes(s)).map((stage) => {
-        const stageInfs = influencers.filter((i) => i.stage === stage);
-        const color = STAGE_COLORS[stage] || STAGE_COLORS['Contacted'];
+      {visibleStages.map((stage) => {
+        const stageInfs = getStageInfluencers(stage);
+        const color = STAGE_COLORS[stage] || STAGE_COLORS['Replied'];
 
         return (
           <div

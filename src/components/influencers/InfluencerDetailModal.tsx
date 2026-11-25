@@ -489,7 +489,7 @@ export default function InfluencerDetailModal({
               Pipeline Stage (Click to advance)
             </span>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied', 'Removed / on hold'].includes(s)).map((s) => {
+              {PIPELINE_STAGES.filter((s) => !['Contacted', 'Removed / on hold'].includes(s)).map((s) => {
                 const isCurrent = influencer.stage === s;
                 return (
                   <button

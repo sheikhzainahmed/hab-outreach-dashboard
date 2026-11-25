@@ -28,6 +28,7 @@ import {
   UserCheck,
   Tag,
   Copy,
+  Percent,
 } from 'lucide-react';
 import { STAGE_COLORS, PIPELINE_STAGES } from '@/lib/constants';
 
@@ -70,17 +71,87 @@ export default function InfluencerDetailModal({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedDm, setCopiedDm] = useState(false);
 
+  // Editable Payment & Bank Details state
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
+  const [editIsPaid, setEditIsPaid] = useState(Boolean(influencer?.isPaid));
+  const [editAmount, setEditAmount] = useState(String(influencer?.amount || 0));
+  const [editAdvancePct, setEditAdvancePct] = useState(String(influencer?.advancePercentage || 0));
+  const [editCompletionPct, setEditCompletionPct] = useState(
+    String(
+      influencer?.completionPercentage !== undefined && influencer?.completionPercentage !== null
+        ? influencer.completionPercentage
+        : 100 - (influencer?.advancePercentage || 0)
+    )
+  );
+  const [editBankName, setEditBankName] = useState(
+    influencer?.bankName && influencer.bankName !== 'Not Provided' ? influencer.bankName : ''
+  );
+  const [editAccountTitle, setEditAccountTitle] = useState(
+    influencer?.accountTitle && influencer.accountTitle !== 'Not Provided' ? influencer.accountTitle : ''
+  );
+  const [editAccountNumber, setEditAccountNumber] = useState(
+    influencer?.accountNumber && influencer.accountNumber !== 'Not Provided' ? influencer.accountNumber : ''
+  );
+  const [editDoNotShip, setEditDoNotShip] = useState(Boolean(influencer?.doNotShip));
+
+  // Local display snapshot for commercial terms (updates immediately upon save)
+  const [savedPaymentView, setSavedPaymentView] = useState({
+    isPaid: Boolean(influencer?.isPaid),
+    amount: influencer?.amount || 0,
+    advancePercentage: influencer?.advancePercentage || 0,
+    completionPercentage:
+      influencer?.completionPercentage !== undefined && influencer?.completionPercentage !== null
+        ? influencer.completionPercentage
+        : 100 - (influencer?.advancePercentage || 0),
+    paymentTerms: influencer?.paymentTerms || '',
+    bankName: influencer?.bankName && influencer.bankName !== 'Not Provided' ? influencer.bankName : '',
+    accountTitle: influencer?.accountTitle && influencer.accountTitle !== 'Not Provided' ? influencer.accountTitle : '',
+    accountNumber: influencer?.accountNumber && influencer.accountNumber !== 'Not Provided' ? influencer.accountNumber : '',
+    doNotShip: Boolean(influencer?.doNotShip),
+  });
+
   // Deliverable proof modal state
   const [selectedDeliverable, setSelectedDeliverable] = useState<any>(null);
   const [proofInput, setProofInput] = useState('');
 
   // Fetch team members when opened
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && influencer) {
       setSelectedAssigneeId(influencer?.assignedToId || '');
       setPromoCodeInput(influencer?.discountCode || '');
       setDisplayedPromoCode(influencer?.discountCode || '');
       setIsEditingCode(false);
+
+      const cleanBank = influencer?.bankName && influencer.bankName !== 'Not Provided' ? influencer.bankName : '';
+      const cleanTitle = influencer?.accountTitle && influencer.accountTitle !== 'Not Provided' ? influencer.accountTitle : '';
+      const cleanAcc = influencer?.accountNumber && influencer.accountNumber !== 'Not Provided' ? influencer.accountNumber : '';
+      const advP = influencer?.advancePercentage || 0;
+      const compP =
+        influencer?.completionPercentage !== undefined && influencer?.completionPercentage !== null
+          ? influencer.completionPercentage
+          : 100 - advP;
+
+      setIsEditingPayment(false);
+      setEditIsPaid(Boolean(influencer?.isPaid));
+      setEditAmount(String(influencer?.amount || 0));
+      setEditAdvancePct(String(advP));
+      setEditCompletionPct(String(compP));
+      setEditBankName(cleanBank);
+      setEditAccountTitle(cleanTitle);
+      setEditAccountNumber(cleanAcc);
+      setEditDoNotShip(Boolean(influencer?.doNotShip));
+      setSavedPaymentView({
+        isPaid: Boolean(influencer?.isPaid),
+        amount: influencer?.amount || 0,
+        advancePercentage: advP,
+        completionPercentage: compP,
+        paymentTerms: influencer?.paymentTerms || '',
+        bankName: cleanBank,
+        accountTitle: cleanTitle,
+        accountNumber: cleanAcc,
+        doNotShip: Boolean(influencer?.doNotShip),
+      });
+
       fetch('/api/users')
         .then((res) => res.json())
         .then((data) => {
@@ -142,6 +213,59 @@ export default function InfluencerDetailModal({
       setDisplayedPromoCode(finalCode);
       setIsEditingCode(false);
       setSuccessMsg(finalCode ? 'Custom promo code updated and synced to executor!' : 'Promo code removed.');
+      setTimeout(() => setSuccessMsg(null), 2500);
+      onUpdate();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePaymentDetails = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const numericAmount = editIsPaid ? parseFloat(editAmount) || 0 : 0;
+      const advPct = editIsPaid ? Math.min(100, Math.max(0, parseInt(editAdvancePct, 10) || 0)) : 0;
+      const compPct = editIsPaid ? Math.min(100, Math.max(0, parseInt(editCompletionPct, 10) || 100 - advPct)) : 100;
+      const computedTerms = editIsPaid
+        ? advPct > 0
+          ? `${advPct}% Advance / ${compPct}% on Completion`
+          : '0% Advance / 100% on Completion'
+        : null;
+
+      const res = await fetch(`/api/influencers/${influencer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isPaid: editIsPaid,
+          amount: numericAmount,
+          advancePercentage: advPct,
+          completionPercentage: compPct,
+          paymentTerms: computedTerms,
+          bankName: editIsPaid ? editBankName.trim() : null,
+          accountTitle: editIsPaid ? editAccountTitle.trim() : null,
+          accountNumber: editIsPaid ? editAccountNumber.trim() : null,
+          doNotShip: editDoNotShip,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save payment details');
+
+      setSavedPaymentView({
+        isPaid: editIsPaid,
+        amount: numericAmount,
+        advancePercentage: advPct,
+        completionPercentage: compPct,
+        paymentTerms: computedTerms || '',
+        bankName: editIsPaid ? editBankName.trim() : '',
+        accountTitle: editIsPaid ? editAccountTitle.trim() : '',
+        accountNumber: editIsPaid ? editAccountNumber.trim() : '',
+        doNotShip: editDoNotShip,
+      });
+      setIsEditingPayment(false);
+      setSuccessMsg('Payment & bank details saved successfully!');
       setTimeout(() => setSuccessMsg(null), 2500);
       onUpdate();
     } catch (err: any) {
@@ -365,7 +489,7 @@ export default function InfluencerDetailModal({
               Pipeline Stage (Click to advance)
             </span>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {PIPELINE_STAGES.filter((s) => s !== 'Removed / on hold').map((s) => {
+              {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied', 'Removed / on hold'].includes(s)).map((s) => {
                 const isCurrent = influencer.stage === s;
                 return (
                   <button
@@ -450,66 +574,308 @@ export default function InfluencerDetailModal({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Commercial Terms
-                  </span>
-                  <p className="text-sm font-bold text-slate-900">
-                    {influencer.isPaid ? `PKR ${influencer.amount?.toLocaleString()}` : 'Gifted PR Package'}
-                  </p>
-                  {influencer.isPaid && influencer.paymentTerms && (
-                    <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
-                      Terms: {influencer.paymentTerms}
-                    </p>
-                  )}
-                  {influencer.isPaid && influencer.bankName && (
-                    <div className="text-[10px] text-slate-700 bg-white p-1.5 rounded-lg border border-slate-200 mt-1.5 space-y-0.5">
-                      <div className="font-bold flex items-center gap-1">
-                        <Building className="w-3 h-3 text-slate-400" />
-                        <span>{influencer.bankName}</span>
-                      </div>
-                      <div>Title: <span className="font-semibold">{influencer.accountTitle || 'N/A'}</span></div>
-                      <div className="font-mono text-slate-600">Acc: {influencer.accountNumber || 'N/A'}</div>
-                    </div>
-                  )}
-                  {influencer.approval && (
-                    <p className="text-xs text-slate-500 mt-1.5">
-                      Approval:{' '}
-                      <span className={`font-bold ${
-                        influencer.approval.status === 'APPROVED' ? 'text-emerald-600' : influencer.approval.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'
-                      }`}>
-                        {influencer.approval.status}
-                      </span>
-                    </p>
-                  )}
-                  {influencer.doNotShip && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-1.5">
-                      <Ban className="w-3 h-3" />
-                      Do Not Ship (Payment Only)
+                <div className={`p-4 rounded-2xl bg-slate-50 border border-slate-200/80 ${isEditingPayment ? 'sm:col-span-2' : ''}`}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Commercial Terms &amp; Payment Details
                     </span>
-                  )}
-                  {influencer.isPaid && (
-                    <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
-                      <span className="text-[11px] font-semibold text-slate-500">Payout Status:</span>
-                      <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                        influencer.paymentStatus === 'FULLY_PAID'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : influencer.paymentStatus === 'ADVANCE_PAID'
-                          ? 'bg-teal-100 text-teal-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {influencer.paymentStatus === 'FULLY_PAID'
-                          ? 'Fully Paid ✓'
-                          : influencer.paymentStatus === 'ADVANCE_PAID'
-                          ? 'Advance Paid'
-                          : 'Pending Payout'}
-                      </span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingPayment(!isEditingPayment)}
+                        className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        {isEditingPayment
+                          ? 'Cancel'
+                          : savedPaymentView.bankName || savedPaymentView.isPaid
+                          ? 'Edit Payment'
+                          : 'Add Payment Details'}
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingPayment ? (
+                    <div className="space-y-3 pt-2">
+                      {/* Gifted vs Paid Toggle */}
+                      <div className="flex items-center bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs w-fit">
+                        <button
+                          type="button"
+                          onClick={() => setEditIsPaid(false)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            !editIsPaid ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <Gift className="w-3.5 h-3.5" />
+                          Gifted / Barter
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditIsPaid(true)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            editIsPaid ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          Paid Collab
+                        </button>
+                      </div>
+
+                      {editIsPaid && (
+                        <div className="space-y-3">
+                          {/* Fee Amount */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[11px] font-bold text-slate-700">
+                              Agreed Fee (PKR)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              placeholder="e.g. 15000"
+                              className="w-full px-3 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                            <div className="flex flex-wrap items-center gap-1">
+                              {['8000', '10000', '15000', '20000', '25000', '30000', '35000'].map((amt) => (
+                                <button
+                                  key={amt}
+                                  type="button"
+                                  onClick={() => setEditAmount(amt)}
+                                  className={`text-[10px] px-2 py-0.5 rounded-md font-bold transition-colors ${
+                                    editAmount === amt
+                                      ? 'bg-amber-600 text-white'
+                                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {parseInt(amt, 10) / 1000}k
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Payment Split (% Advance / % on Completion) */}
+                          <div className="p-3 bg-white rounded-xl border border-amber-200 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-1.5">
+                              <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                                <Percent className="w-3 h-3 text-amber-600" />
+                                Payment Schedule (% Split)
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {[
+                                  { label: '50% / 50%', adv: '50', comp: '50' },
+                                  { label: '0% / 100%', adv: '0', comp: '100' },
+                                  { label: '100% Adv', adv: '100', comp: '0' },
+                                ].map((preset) => (
+                                  <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditAdvancePct(preset.adv);
+                                      setEditCompletionPct(preset.comp);
+                                    }}
+                                    className={`text-[10px] px-2 py-0.5 rounded-md font-bold border transition-colors ${
+                                      editAdvancePct === preset.adv && editCompletionPct === preset.comp
+                                        ? 'bg-amber-600 text-white border-amber-600'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                                  % In Advance
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={editAdvancePct}
+                                  onChange={(e) => {
+                                    const v = Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0));
+                                    setEditAdvancePct(String(v));
+                                    setEditCompletionPct(String(100 - v));
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <span className="text-[10px] text-amber-700 font-semibold">
+                                  PKR {Math.round(((parseFloat(editAmount) || 0) * (parseInt(editAdvancePct, 10) || 0)) / 100).toLocaleString()}
+                                </span>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                                  % On Completion
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={editCompletionPct}
+                                  onChange={(e) => {
+                                    const v = Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0));
+                                    setEditCompletionPct(String(v));
+                                    setEditAdvancePct(String(100 - v));
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <span className="text-[10px] text-emerald-700 font-semibold">
+                                  PKR {Math.round(((parseFloat(editAmount) || 0) * (parseInt(editCompletionPct, 10) || 0)) / 100).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bank Account Details */}
+                          <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                            <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                              <Building className="w-3.5 h-3.5 text-slate-500" />
+                              Creator Bank / Wallet Details
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                                  Bank Name / Wallet
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Meezan Bank, HBL, SadaPay"
+                                  value={editBankName}
+                                  onChange={(e) => setEditBankName(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                                  Account Title
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="Account holder name"
+                                  value={editAccountTitle}
+                                  onChange={(e) => setEditAccountTitle(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
+                                Account Number / IBAN
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. PK36 MEZN 0002 1234 5678 9012"
+                                value={editAccountNumber}
+                                onChange={(e) => setEditAccountNumber(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Do Not Ship toggle */}
+                      <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer pt-0.5">
+                        <input
+                          type="checkbox"
+                          checked={editDoNotShip}
+                          onChange={(e) => setEditDoNotShip(e.target.checked)}
+                          className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <span>Do not ship product (Payment / Digital Only)</span>
+                      </label>
+
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPayment(false)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSavePaymentDetails}
+                          disabled={loading}
+                          className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm flex items-center gap-1.5"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          {loading ? 'Saving...' : 'Save Payment Details'}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  {influencer.paymentProofUrl && (
-                    <p className="text-[10px] text-slate-500 font-mono mt-1">
-                      Payment Ref: {influencer.paymentProofUrl}
-                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-slate-900">
+                        {savedPaymentView.isPaid ? `PKR ${savedPaymentView.amount?.toLocaleString()}` : 'Gifted PR Package'}
+                      </p>
+                      {savedPaymentView.isPaid && savedPaymentView.paymentTerms && (
+                        <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
+                          Terms: {savedPaymentView.paymentTerms}
+                        </p>
+                      )}
+                      {savedPaymentView.isPaid && (savedPaymentView.bankName || savedPaymentView.accountTitle || savedPaymentView.accountNumber) ? (
+                        <div className="text-[10px] text-slate-700 bg-white p-1.5 rounded-lg border border-slate-200 mt-1.5 space-y-0.5">
+                          <div className="font-bold flex items-center gap-1">
+                            <Building className="w-3 h-3 text-slate-400" />
+                            <span>{savedPaymentView.bankName || 'Bank not set'}</span>
+                          </div>
+                          <div>Title: <span className="font-semibold">{savedPaymentView.accountTitle || 'N/A'}</span></div>
+                          <div className="font-mono text-slate-600">Acc: {savedPaymentView.accountNumber || 'N/A'}</div>
+                        </div>
+                      ) : savedPaymentView.isPaid && canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPayment(true)}
+                          className="mt-1.5 w-full px-2.5 py-1.5 rounded-lg border border-dashed border-amber-300 bg-amber-50/70 hover:bg-amber-100/80 text-[11px] font-bold text-amber-800 flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <CreditCard className="w-3 h-3" />
+                          + Add Bank Details &amp; Payment Split
+                        </button>
+                      ) : null}
+                      {influencer.approval && (
+                        <p className="text-xs text-slate-500 mt-1.5">
+                          Approval:{' '}
+                          <span className={`font-bold ${
+                            influencer.approval.status === 'APPROVED' ? 'text-emerald-600' : influencer.approval.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'
+                          }`}>
+                            {influencer.approval.status}
+                          </span>
+                        </p>
+                      )}
+                      {savedPaymentView.doNotShip && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-1.5">
+                          <Ban className="w-3 h-3" />
+                          Do Not Ship (Payment Only)
+                        </span>
+                      )}
+                      {savedPaymentView.isPaid && (
+                        <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                          <span className="text-[11px] font-semibold text-slate-500">Payout Status:</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
+                            influencer.paymentStatus === 'FULLY_PAID'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : influencer.paymentStatus === 'ADVANCE_PAID'
+                              ? 'bg-teal-100 text-teal-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {influencer.paymentStatus === 'FULLY_PAID'
+                              ? 'Fully Paid ✓'
+                              : influencer.paymentStatus === 'ADVANCE_PAID'
+                              ? 'Advance Paid'
+                              : 'Pending Payout'}
+                          </span>
+                        </div>
+                      )}
+                      {influencer.paymentProofUrl && (
+                        <p className="text-[10px] text-slate-500 font-mono mt-1">
+                          Payment Ref: {influencer.paymentProofUrl}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

@@ -50,6 +50,8 @@ function OwnerPageContent() {
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [payableData, setPayableData] = useState<any>({ summary: {}, payables: [] });
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'advance_due' | 'completion_due' | 'paid'>('all');
+  const [payableExecutorFilter, setPayableExecutorFilter] = useState<string>('all');
+  const [approvalExecutorFilter, setApprovalExecutorFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [execSearch, setExecSearch] = useState('');
 
@@ -171,19 +173,63 @@ function OwnerPageContent() {
     setTimeout(() => setCopiedBankId(null), 1800);
   };
 
+  const handleOpenInfluencerById = async (id: string, fallback?: any) => {
+    try {
+      const res = await fetch(`/api/influencers/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.influencer) {
+          setSelectedInfluencer(data.influencer);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    if (fallback) setSelectedInfluencer(fallback);
+  };
+
+  const approvalExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    pendingApprovals.forEach((inf: any) => {
+      const name = inf.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [pendingApprovals]);
+
+  const filteredPendingApprovals = useMemo(() => {
+    if (approvalExecutorFilter === 'all') return pendingApprovals;
+    return pendingApprovals.filter(
+      (inf: any) => (inf.assignedTo?.name || 'Unassigned').toLowerCase() === approvalExecutorFilter.toLowerCase()
+    );
+  }, [pendingApprovals, approvalExecutorFilter]);
+
+  const payableExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    (payableData?.payables || []).forEach((p: any) => {
+      const name = p.assignedTo || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [payableData?.payables]);
+
   const filteredPayables = useMemo(() => {
-    const list = payableData?.payables || [];
+    let list = payableData?.payables || [];
     if (paymentFilter === 'advance_due') {
-      return list.filter((p: any) => p.isApproved && p.paymentStage === 'Advance Payment Due');
+      list = list.filter((p: any) => p.isApproved && p.paymentStage === 'Advance Payment Due');
+    } else if (paymentFilter === 'completion_due') {
+      list = list.filter((p: any) => p.isApproved && p.paymentStage === 'Work Complete Due');
+    } else if (paymentFilter === 'paid') {
+      list = list.filter((p: any) => p.paymentStatus === 'FULLY_PAID' || p.paymentStatus === 'ADVANCE_PAID');
     }
-    if (paymentFilter === 'completion_due') {
-      return list.filter((p: any) => p.isApproved && p.paymentStage === 'Work Complete Due');
-    }
-    if (paymentFilter === 'paid') {
-      return list.filter((p: any) => p.paymentStatus === 'FULLY_PAID' || p.paymentStatus === 'ADVANCE_PAID');
+    if (payableExecutorFilter !== 'all') {
+      list = list.filter(
+        (p: any) => (p.assignedTo || 'Unassigned').toLowerCase() === payableExecutorFilter.toLowerCase()
+      );
     }
     return list;
-  }, [payableData?.payables, paymentFilter]);
+  }, [payableData?.payables, paymentFilter, payableExecutorFilter]);
 
   const handleDecision = async () => {
     if (!actionApproval) return;
@@ -429,12 +475,34 @@ function OwnerPageContent() {
                         <th className="px-4 py-3">Category</th>
                         <th className="px-4 py-3">Deliverable Requested</th>
                         <th className="px-4 py-3">Fee / Cost</th>
-                        <th className="px-4 py-3">Executor</th>
+                        <th className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <span>Executor</span>
+                            <select
+                              value={approvalExecutorFilter}
+                              onChange={(e) => setApprovalExecutorFilter(e.target.value)}
+                              className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            >
+                              <option value="all">All ({pendingApprovals.length})</option>
+                              {approvalExecutors.map((e) => (
+                                <option key={e.name} value={e.name}>
+                                  {e.name} ({e.count})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </th>
                         <th className="px-4 py-3 text-right">Executive Sign-off</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {pendingApprovals.map((inf) => {
+                      {filteredPendingApprovals.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                            No pending approvals for &quot;{approvalExecutorFilter}&quot;.
+                          </td>
+                        </tr>
+                      ) : filteredPendingApprovals.map((inf) => {
                         const fee = inf.amount || inf.approval?.amount || 0;
                         const deliverable = inf.deliverables?.[0]?.type || 'Post';
                         return (
@@ -630,48 +698,67 @@ function OwnerPageContent() {
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="flex items-center gap-1.5 border-b border-slate-100 pb-2 overflow-x-auto text-xs font-bold">
-                <button
-                  onClick={() => setPaymentFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                    paymentFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  All ({payableData.payables?.length || 0})
-                </button>
-                <button
-                  onClick={() => setPaymentFilter('advance_due')}
-                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                    paymentFilter === 'advance_due'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                  }`}
-                >
-                  Advance Due ({payableData.summary?.advanceDueCount || 0})
-                </button>
-                <button
-                  onClick={() => setPaymentFilter('completion_due')}
-                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                    paymentFilter === 'completion_due'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
-                  }`}
-                >
-                  Work Complete Due ({payableData.summary?.completionDueCount || 0})
-                </button>
-                <button
-                  onClick={() => setPaymentFilter('paid')}
-                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                    paymentFilter === 'paid'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                >
-                  Settled / Paid ({payableData.summary?.fullyPaidCount || 0})
-                </button>
+              {/* Status Filter Tabs & Executor Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2 text-xs font-bold">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  <button
+                    onClick={() => setPaymentFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                      paymentFilter === 'all'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    All ({payableData.payables?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setPaymentFilter('advance_due')}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                      paymentFilter === 'advance_due'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                    }`}
+                  >
+                    Advance Due ({payableData.summary?.advanceDueCount || 0})
+                  </button>
+                  <button
+                    onClick={() => setPaymentFilter('completion_due')}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                      paymentFilter === 'completion_due'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                    }`}
+                  >
+                    Work Complete Due ({payableData.summary?.completionDueCount || 0})
+                  </button>
+                  <button
+                    onClick={() => setPaymentFilter('paid')}
+                    className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                      paymentFilter === 'paid'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  >
+                    Settled / Paid ({payableData.summary?.fullyPaidCount || 0})
+                  </button>
+                </div>
+
+                {/* Executor Filter Dropdown */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="text-[11px] font-bold text-slate-500">Executor:</label>
+                  <select
+                    value={payableExecutorFilter}
+                    onChange={(e) => setPayableExecutorFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-950 bg-emerald-50/70 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  >
+                    <option value="all">All Executors ({payableData.payables?.length || 0})</option>
+                    {payableExecutors.map((e) => (
+                      <option key={e.name} value={e.name}>
+                        {e.name} ({e.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Payable Table */}
@@ -685,7 +772,23 @@ function OwnerPageContent() {
                       <th className="px-3 py-3 min-w-[120px]">Terms / Split</th>
                       <th className="px-4 py-3 min-w-[150px]">Payment Stage</th>
                       <th className="px-3 py-3 min-w-[90px]">Content</th>
-                      <th className="px-3 py-3 min-w-[90px]">Executor</th>
+                      <th className="px-3 py-3 min-w-[150px]">
+                        <div className="flex items-center gap-1.5">
+                          <span>Executor</span>
+                          <select
+                            value={payableExecutorFilter}
+                            onChange={(e) => setPayableExecutorFilter(e.target.value)}
+                            className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value="all">All</option>
+                            {payableExecutors.map((e) => (
+                              <option key={e.name} value={e.name}>
+                                {e.name} ({e.count})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </th>
                       <th className="px-4 py-3 min-w-[140px] text-right">Payout Action</th>
                     </tr>
                   </thead>
@@ -708,7 +811,7 @@ function OwnerPageContent() {
                             {/* Creator */}
                             <td className="px-4 py-3">
                               <button
-                                onClick={() => setSelectedInfluencer(item)}
+                                onClick={() => handleOpenInfluencerById(item.id, item)}
                                 className="font-bold text-slate-900 hover:text-rose-600 text-left transition-colors"
                               >
                                 {item.name}
@@ -743,6 +846,15 @@ function OwnerPageContent() {
                                     </button>
                                   )}
                                 </div>
+                                {item.bankName === 'Not Provided' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenInfluencerById(item.id, item)}
+                                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline mt-0.5 inline-block"
+                                  >
+                                    + Add Bank Details
+                                  </button>
+                                )}
                               </div>
                             </td>
 

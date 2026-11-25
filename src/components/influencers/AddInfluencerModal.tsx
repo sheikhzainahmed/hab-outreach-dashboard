@@ -40,7 +40,7 @@ export default function AddInfluencerModal({
   // Form State
   const [igHandle, setIgHandle] = useState('');
   const [name, setName] = useState('');
-  const [stage, setStage] = useState('Contacted');
+  const [stage, setStage] = useState('Package agreed');
   const [category, setCategory] = useState('Skinfluencer');
   const [followerCount, setFollowerCount] = useState('25000');
   const [stars, setStars] = useState('⭐⭐⭐⭐');
@@ -331,10 +331,8 @@ export default function AddInfluencerModal({
                   onChange={(e) => setStage(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white"
                 >
-                  <option value="Contacted">1. Contacted (Just DM&apos;d)</option>
-                  <option value="Replied">2. Replied (In Conversation)</option>
-                  <option value="Package agreed">3. Package Agreed</option>
-                  <option value="Ready to ship">4. Ready to Ship (Has Address)</option>
+                  <option value="Package agreed">1. Package Agreed</option>
+                  <option value="Ready to ship">2. Ready to Ship (Has Address)</option>
                 </select>
               </div>
 

@@ -66,6 +66,7 @@ function OperationsContent() {
 
   // Search & Filters
   const [search, setSearch] = useState('');
+  const [executorFilter, setExecutorFilter] = useState('all');
   const [activeTab, setActiveTab] = useState<'all' | 'Ready' | 'Shipped' | 'Delivered'>(
     statusParam === 'Ready' || statusParam === 'Shipped' || statusParam === 'Delivered'
       ? statusParam
@@ -163,6 +164,16 @@ function OperationsContent() {
     return new Set(Object.keys(counts).filter((p) => counts[p] > 1));
   }, [dispatches]);
 
+  // Executor list with counts for dropdown filter
+  const dispatchExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    dispatches.forEach((d) => {
+      const name = d.influencer?.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [dispatches]);
+
   // Filtered & Searched Orders
   const filteredDispatches = useMemo(() => {
     return dispatches.filter((item) => {
@@ -174,6 +185,14 @@ function OperationsContent() {
         return false;
       }
       if (activeTab === 'Delivered' && item.status !== 'Delivered') {
+        return false;
+      }
+
+      // Executor filter
+      if (
+        executorFilter !== 'all' &&
+        (item.influencer?.assignedTo?.name || 'Unassigned').toLowerCase() !== executorFilter.toLowerCase()
+      ) {
         return false;
       }
 
@@ -203,7 +222,7 @@ function OperationsContent() {
 
       return true;
     });
-  }, [dispatches, activeTab, search]);
+  }, [dispatches, activeTab, executorFilter, search]);
 
   // Update Status Action (Mark Dispatched / Mark Delivered)
   const handleUpdateStatus = async (dispatchId: string, newStatus: string) => {
@@ -499,17 +518,32 @@ function OperationsContent() {
           </div>
 
           {/* Controls Bar: Search & Status Filters */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative w-full sm:w-96">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search creator, phone, city, product, tracking #..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-3">
+            {/* Search Input & Executor Filter */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search creator, phone, city, product, tracking #..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <select
+                value={executorFilter}
+                onChange={(e) => setExecutorFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/70 text-xs font-bold text-teal-950 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="all">All Executors ({dispatches.length})</option>
+                {dispatchExecutors.map((e) => (
+                  <option key={e.name} value={e.name}>
+                    {e.name} ({e.count})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Filter Tabs */}
@@ -584,7 +618,23 @@ function OperationsContent() {
                     <th className="px-4 py-3 min-w-[180px]">Products to Pack</th>
                     <th className="px-4 py-3 min-w-[170px]">Courier Tracking #</th>
                     <th className="px-4 py-3 min-w-[150px] text-center">Dispatch Status</th>
-                    <th className="px-3 py-3 min-w-[90px]">Locked By</th>
+                    <th className="px-3 py-3 min-w-[150px]">
+                      <div className="flex items-center gap-1.5">
+                        <span>Locked By</span>
+                        <select
+                          value={executorFilter}
+                          onChange={(e) => setExecutorFilter(e.target.value)}
+                          className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        >
+                          <option value="all">All</option>
+                          {dispatchExecutors.map((e) => (
+                            <option key={e.name} value={e.name}>
+                              {e.name} ({e.count})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
                     <th className="px-2 py-3 w-10 text-center" title="Delete demo/order row"></th>
                   </tr>
                 </thead>

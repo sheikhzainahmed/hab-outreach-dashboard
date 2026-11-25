@@ -63,6 +63,42 @@ function ManagerPageContent() {
   const [copiedToast, setCopiedToast] = useState(false);
   const [execSearch, setExecSearch] = useState('');
   const [overdueExecutorFilter, setOverdueExecutorFilter] = useState('all');
+  const [stuckExecutorFilter, setStuckExecutorFilter] = useState('all');
+  const [dispatchExecutorFilter, setDispatchExecutorFilter] = useState('all');
+
+  // Dispatch executor counts & filtered list
+  const dispatchExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    dispatches.forEach((d: any) => {
+      const name = d.influencer?.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [dispatches]);
+
+  const filteredDispatches = useMemo(() => {
+    if (dispatchExecutorFilter === 'all') return dispatches;
+    return dispatches.filter(
+      (d: any) => (d.influencer?.assignedTo?.name || 'Unassigned').toLowerCase() === dispatchExecutorFilter.toLowerCase()
+    );
+  }, [dispatches, dispatchExecutorFilter]);
+
+  // Stuck executor counts & filtered list
+  const stuckExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    (healthData?.stuck || []).forEach((inf: any) => {
+      const name = inf.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [healthData?.stuck]);
+
+  const filteredStuckList = useMemo(() => {
+    if (stuckExecutorFilter === 'all') return healthData?.stuck || [];
+    return (healthData?.stuck || []).filter(
+      (inf: any) => (inf.assignedTo?.name || 'Unassigned').toLowerCase() === stuckExecutorFilter.toLowerCase()
+    );
+  }, [healthData?.stuck, stuckExecutorFilter]);
 
   // Overdue executor counts and filtered list
   const overdueExecutors = useMemo(() => {
@@ -574,13 +610,36 @@ function ManagerPageContent() {
                           <th className="px-4 py-3">Shipping Address</th>
                           <th className="px-4 py-3">Phone</th>
                           <th className="px-4 py-3">Package Contents</th>
+                          <th className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span>Executor</span>
+                              <select
+                                value={dispatchExecutorFilter}
+                                onChange={(e) => setDispatchExecutorFilter(e.target.value)}
+                                className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              >
+                                <option value="all">All ({dispatches.length})</option>
+                                {dispatchExecutors.map((e) => (
+                                  <option key={e.name} value={e.name}>
+                                    {e.name} ({e.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </th>
                           <th className="px-4 py-3">Dispatch Status</th>
                           <th className="px-4 py-3">Tracking ID</th>
                           <th className="px-4 py-3 text-right">Advance Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
-                        {dispatches.map((d) => {
+                        {filteredDispatches.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                              No packages for &quot;{dispatchExecutorFilter}&quot;.
+                            </td>
+                          </tr>
+                        ) : filteredDispatches.map((d) => {
                           const inf = d.influencer;
                           return (
                             <tr key={d.id} className="hover:bg-slate-50 transition-colors">
@@ -596,6 +655,11 @@ function ManagerPageContent() {
                               <td className="px-4 py-3 font-semibold text-slate-800">{inf.phone}</td>
                               <td className="px-4 py-3 font-semibold text-slate-900 max-w-xs truncate">
                                 {inf.products || inf.prPackage}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
+                                  {inf.assignedTo?.name || 'Unassigned'}
+                                </span>
                               </td>
                               <td className="px-4 py-3">
                                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -881,12 +945,34 @@ function ManagerPageContent() {
                           <th className="p-2.5">Influencer</th>
                           <th className="p-2.5">City</th>
                           <th className="p-2.5">Products</th>
-                          <th className="p-2.5">Assigned To</th>
+                          <th className="p-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <span>Assigned To</span>
+                              <select
+                                value={stuckExecutorFilter}
+                                onChange={(e) => setStuckExecutorFilter(e.target.value)}
+                                className="text-[10px] font-bold bg-white text-amber-900 border border-amber-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              >
+                                <option value="all">All ({healthData.stuck.length})</option>
+                                {stuckExecutors.map((e) => (
+                                  <option key={e.name} value={e.name}>
+                                    {e.name} ({e.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </th>
                           <th className="p-2.5 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-amber-100">
-                        {healthData.stuck.map((inf: any) => (
+                        {filteredStuckList.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-6 text-center text-slate-500 italic">
+                              No stuck packages for &quot;{stuckExecutorFilter}&quot;.
+                            </td>
+                          </tr>
+                        ) : filteredStuckList.map((inf: any) => (
                           <tr key={inf.id} className="hover:bg-amber-50/30">
                             <td className="p-2.5 font-bold text-slate-900">{inf.name} ({inf.igHandle})</td>
                             <td className="p-2.5">{inf.city || 'N/A'}</td>

@@ -132,7 +132,7 @@ function ExecutorContent() {
         body: JSON.stringify({
           igHandle: cleanHandle,
           name: cleanHandle.replace('@', ''),
-          stage: 'Contacted',
+          stage: 'Package agreed',
           category: 'Lifestyle',
         }),
       });
@@ -367,7 +367,7 @@ function ExecutorContent() {
                 className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
               >
                 <option value="all">All Stages ({influencers.length})</option>
-                {PIPELINE_STAGES.map((s) => (
+                {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied'].includes(s)).map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -473,7 +473,30 @@ function ExecutorContent() {
                     <tr>
                       <th className="px-4 py-3">Creator</th>
                       <th className="px-4 py-3">Stage (Click to change)</th>
-                      <th className="px-4 py-3">Assigned Profile</th>
+                      <th className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span>Assigned Profile</span>
+                          {allTeam && (
+                            <select
+                              value={executorFilter}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExecutorFilter(val);
+                                if (val === 'all') router.push('/executor?allTeam=true');
+                                else router.push(`/executor?allTeam=true&executorId=${val}`);
+                              }}
+                              className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="all">All</option>
+                              {allUsers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </th>
                       <th className="px-4 py-3">PR Package</th>
                       <th className="px-4 py-3">Promo Code</th>
                       <th className="px-4 py-3">Shipping Address</th>
@@ -509,7 +532,9 @@ function ExecutorContent() {
                               onChange={(e) => handleInlineStageChange(inf.id, e.target.value)}
                               className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs cursor-pointer ${color.bg} ${color.text} ${color.border}`}
                             >
-                              {PIPELINE_STAGES.map((s) => (
+                              {PIPELINE_STAGES.filter(
+                                (s) => !['Contacted', 'Replied'].includes(s) || s === inf.stage
+                              ).map((s) => (
                                 <option key={s} value={s}>{s}</option>
                               ))}
                             </select>

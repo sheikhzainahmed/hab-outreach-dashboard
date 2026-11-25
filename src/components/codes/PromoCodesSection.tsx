@@ -74,6 +74,7 @@ export default function PromoCodesSection({
   // Queue filters & state
   const [queueSearch, setQueueSearch] = useState('');
   const [queueStageFilter, setQueueStageFilter] = useState('all');
+  const [queueExecutorFilter, setQueueExecutorFilter] = useState('all');
   const [includeReceived, setIncludeReceived] = useState(false);
   const [codeDrafts, setCodeDrafts] = useState<Record<string, string>>({});
 
@@ -143,10 +144,26 @@ export default function PromoCodesSection({
     fetchData();
   }, [includeReceived, archiveMonth, archiveExecutor]);
 
+  // Queue executors with counts
+  const queueExecutors = useMemo(() => {
+    const map: Record<string, number> = {};
+    queue.forEach((inf) => {
+      const name = inf.assignedTo?.name || 'Unassigned';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).map(([name, count]) => ({ name, count }));
+  }, [queue]);
+
   // Filtered queue list
   const filteredQueue = useMemo(() => {
     return queue.filter((inf) => {
       if (queueStageFilter !== 'all' && inf.stage !== queueStageFilter) return false;
+      if (
+        queueExecutorFilter !== 'all' &&
+        (inf.assignedTo?.name || 'Unassigned').toLowerCase() !== queueExecutorFilter.toLowerCase()
+      ) {
+        return false;
+      }
       if (queueSearch.trim()) {
         const q = queueSearch.toLowerCase();
         return (
@@ -159,7 +176,7 @@ export default function PromoCodesSection({
       }
       return true;
     });
-  }, [queue, queueStageFilter, queueSearch, codeDrafts]);
+  }, [queue, queueStageFilter, queueExecutorFilter, queueSearch, codeDrafts]);
 
   // Dirty queue items (edited codes not yet saved)
   const dirtyQueueIds = useMemo(() => {
@@ -639,6 +656,19 @@ export default function PromoCodesSection({
                 {includeReceived && <option value="Content received">Content received</option>}
               </select>
 
+              <select
+                value={queueExecutorFilter}
+                onChange={(e) => setQueueExecutorFilter(e.target.value)}
+                className="text-xs px-2.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 font-bold text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">All Executors ({queue.length})</option>
+                {queueExecutors.map((e) => (
+                  <option key={e.name} value={e.name}>
+                    {e.name} ({e.count})
+                  </option>
+                ))}
+              </select>
+
               <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer select-none px-2">
                 <input
                   type="checkbox"
@@ -748,7 +778,23 @@ export default function PromoCodesSection({
                       <th className="px-4 py-3">Influencer Name</th>
                       <th className="px-4 py-3">Phone Number</th>
                       <th className="px-4 py-3">IG Username</th>
-                      <th className="px-4 py-3">Executor &amp; Stage</th>
+                      <th className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span>Executor</span>
+                          <select
+                            value={queueExecutorFilter}
+                            onChange={(e) => setQueueExecutorFilter(e.target.value)}
+                            className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="all">All</option>
+                            {queueExecutors.map((e) => (
+                              <option key={e.name} value={e.name}>
+                                {e.name} ({e.count})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </th>
                       <th className="px-4 py-3 w-64">Custom Promo Code</th>
                       <th className="px-4 py-3 text-right">Status / Clear</th>
                     </tr>
@@ -1087,7 +1133,23 @@ export default function PromoCodesSection({
                     <tr>
                       <th className="px-4 py-3">Promo Code</th>
                       <th className="px-4 py-3">Creator &amp; Contact</th>
-                      <th className="px-4 py-3">Executor &amp; Collab</th>
+                      <th className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span>Executor</span>
+                          <select
+                            value={archiveExecutor}
+                            onChange={(e) => setArchiveExecutor(e.target.value)}
+                            className="text-[10px] font-bold bg-white text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 normal-case tracking-normal shadow-2xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                          >
+                            <option value="all">All</option>
+                            {allUsers.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </th>
                       <th className="px-4 py-3 w-44">Sales Generated (PKR)</th>
                       <th className="px-4 py-3 min-w-[220px]">Monthly Review Notes</th>
                       <th className="px-4 py-3 text-right">Action</th>

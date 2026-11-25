@@ -87,6 +87,8 @@ export async function PUT(
       assignedToId,
       discountCode,
       salesGenerated,
+      isPaid,
+      amount,
       bankName,
       accountTitle,
       accountNumber,
@@ -133,6 +135,34 @@ export async function PUT(
       }
     }
 
+    // Compute consistent commercial / split figures if any commercial field is being edited
+    const nextIsPaid = isPaid !== undefined ? Boolean(isPaid) : current.isPaid;
+    const nextAmount = amount !== undefined ? parseFloat(amount) || 0 : current.amount;
+    const nextAdvPct =
+      advancePercentage !== undefined
+        ? Math.min(100, Math.max(0, parseInt(advancePercentage, 10) || 0))
+        : current.advancePercentage || 0;
+    const nextCompPct =
+      completionPercentage !== undefined
+        ? Math.min(100, Math.max(0, parseInt(completionPercentage, 10) || 0))
+        : 100 - nextAdvPct;
+    const commercialTouched =
+      isPaid !== undefined ||
+      amount !== undefined ||
+      advancePercentage !== undefined ||
+      completionPercentage !== undefined ||
+      paymentTerms !== undefined;
+    const computedAdvAmount =
+      advanceAmount !== undefined ? parseFloat(advanceAmount) || 0 : (nextAmount * nextAdvPct) / 100;
+    const computedCompAmount =
+      completionAmount !== undefined ? parseFloat(completionAmount) || 0 : (nextAmount * nextCompPct) / 100;
+    const computedTerms = nextIsPaid
+      ? paymentTerms?.trim() ||
+        (nextAdvPct > 0
+          ? `${nextAdvPct}% Advance / ${nextCompPct}% on Completion`
+          : '0% Advance / 100% on Completion')
+      : null;
+
     const updated = await prisma.influencer.update({
       where: { id },
       data: {
@@ -156,14 +186,18 @@ export async function PUT(
           codeAssignedAt: discountCode?.trim() ? new Date() : null,
         }),
         ...(salesGenerated !== undefined && { salesGenerated: parseFloat(salesGenerated) || 0 }),
+        ...(isPaid !== undefined && { isPaid: nextIsPaid }),
+        ...(amount !== undefined && { amount: nextIsPaid ? nextAmount : 0 }),
         ...(bankName !== undefined && { bankName: bankName?.trim() || null }),
         ...(accountTitle !== undefined && { accountTitle: accountTitle?.trim() || null }),
         ...(accountNumber !== undefined && { accountNumber: accountNumber?.trim() || null }),
-        ...(advancePercentage !== undefined && { advancePercentage: parseInt(advancePercentage, 10) || 0 }),
-        ...(advanceAmount !== undefined && { advanceAmount: parseFloat(advanceAmount) || 0 }),
-        ...(completionPercentage !== undefined && { completionPercentage: parseInt(completionPercentage, 10) || 0 }),
-        ...(completionAmount !== undefined && { completionAmount: parseFloat(completionAmount) || 0 }),
-        ...(paymentTerms !== undefined && { paymentTerms: paymentTerms?.trim() || null }),
+        ...(commercialTouched && {
+          advancePercentage: nextIsPaid ? nextAdvPct : 0,
+          advanceAmount: nextIsPaid ? computedAdvAmount : 0,
+          completionPercentage: nextIsPaid ? nextCompPct : 100,
+          completionAmount: nextIsPaid ? computedCompAmount : 0,
+          paymentTerms: computedTerms,
+        }),
         ...(paymentStatus !== undefined && { paymentStatus }),
         ...(paymentProofUrl !== undefined && { paymentProofUrl: paymentProofUrl?.trim() || null }),
         ...(paymentNotes !== undefined && { paymentNotes: paymentNotes?.trim() || null }),
@@ -177,6 +211,35 @@ export async function PUT(
         assignedTo: { select: { id: true, name: true, role: true } },
       },
     });
+
+    // If a creator was newly switched to Paid or paid amount updated, keep Approval in sync
+    if (nextIsPaid && (!current.approval || (amount !== undefined && nextAmount !== current.amount))) {
+      await prisma.approval.upsert({
+        where: { influencerId: id },
+        update: { amount: nextAmount },
+        create: {
+          influencerId: id,
+          amount: nextAmount,
+          status: 'PENDING',
+        },
+      });
+
+      // Notify Owner (Humza) if newly converted from Gifted to Paid
+      if (!current.isPaid) {
+        const owner = await prisma.user.findFirst({ where: { role: 'OWNER' } });
+        if (owner && owner.id !== user.id) {
+          await prisma.notification.create({
+            data: {
+              userId: owner.id,
+              title: 'New Paid Request Added',
+              message: `${user.name} added paid collaboration terms for ${updated.name} (${updated.igHandle}) — PKR ${nextAmount.toLocaleString()} (${computedTerms || 'Standard terms'}).`,
+              link: '/owner?tab=approvals',
+              type: 'warning',
+            },
+          });
+        }
+      }
+    }
 
     // Check if creator was reassigned to another person
     let reassignedLog: string | null = null;

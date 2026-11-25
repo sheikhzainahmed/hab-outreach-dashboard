@@ -45,7 +45,7 @@ export default function KanbanBoard({
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-6 pt-2 select-none min-h-[600px]">
-      {PIPELINE_STAGES.filter((s) => s !== 'Removed / on hold').map((stage) => {
+      {PIPELINE_STAGES.filter((s) => !['Contacted', 'Replied', 'Removed / on hold'].includes(s)).map((stage) => {
         const stageInfs = influencers.filter((i) => i.stage === stage);
         const color = STAGE_COLORS[stage] || STAGE_COLORS['Contacted'];
 
